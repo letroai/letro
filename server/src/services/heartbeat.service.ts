@@ -155,7 +155,7 @@ export class HeartbeatService {
    * Step 3: Assign unassigned tasks to idle team members
    * Step 4: Schedule next heartbeat (self-sustaining loop)
    */
-  private async runLeaderHeartbeat(agent: { id: string; companyId: string }) {
+  private async runLeaderHeartbeat(agent: { id: string; companyId: string; name: string; systemPrompt: string | null }) {
     this.logger.info({ leaderId: agent.id }, "Running leader heartbeat");
 
     // 1. Find the leader's project
@@ -244,7 +244,7 @@ export class HeartbeatService {
    * Members execute ONE task per heartbeat, then reschedule to pick up the next.
    * If no assigned task is found, the member goes idle and stops.
    */
-  private async runMemberHeartbeat(agent: { id: string; companyId: string }) {
+  private async runMemberHeartbeat(agent: { id: string; companyId: string; name: string; systemPrompt: string | null }) {
     this.logger.info({ memberId: agent.id }, "Running member heartbeat");
 
     // 1. Find the member's current assigned task (in_progress)
@@ -272,9 +272,18 @@ export class HeartbeatService {
     // 2. Call Claude CLI to "execute" the task
     try {
       const response = await callLLM({
-        system:
-          "You are a software developer working on a task. Analyze the task and provide a brief summary of what you would do. Return a JSON object: { \"summary\": \"what was done\", \"completed\": true }",
-        prompt: `Task: ${task.title}\nDescription: ${task.description ?? "No description provided"}\n\nProvide your execution summary as JSON.`,
+        system: agent.systemPrompt ?? `You are ${agent.name}, a software developer.`,
+        prompt: `You are working on the following task. Analyze it carefully based on your expertise and describe what you would implement.
+
+Task: ${task.title}
+Description: ${task.description ?? "No additional details"}
+
+Respond with a JSON object:
+{
+  "summary": "Brief description of what was implemented (2-3 sentences)",
+  "details": "Technical details of the approach",
+  "completed": true
+}`,
       });
 
       // 3. Parse Claude's response
@@ -512,6 +521,7 @@ ${goalSummary}${ideaContext}${existingContext}
             specialization: [member.preset],
             idleBehavior: "wait",
             maxConcurrentTasks: 1,
+            systemPrompt: getMemberSystemPrompt(member.preset, member.member_type, member.display_name),
           }),
         )
         .returning();
@@ -815,4 +825,52 @@ ${goalSummary}${ideaContext}${existingContext}
     });
     return run ?? null;
   }
+}
+
+/**
+ * Generates a role-specific system prompt for a team member based on their preset.
+ *
+ * This gives each member a persona with relevant expertise and tech stack preferences,
+ * so they produce higher-quality, role-appropriate output when executing tasks.
+ */
+function getMemberSystemPrompt(preset: string, memberType: string, displayName: string): string {
+  const roleInstructions: Record<string, string> = {
+    backend_engineer: `You are ${displayName}, a backend engineer.
+Your expertise: API design, database modeling, server-side logic, authentication, performance optimization.
+You write clean, well-structured server code with proper error handling and tests.
+Tech stack preference: Node.js, TypeScript, PostgreSQL, REST/GraphQL APIs.`,
+
+    frontend_engineer: `You are ${displayName}, a frontend engineer.
+Your expertise: UI/UX implementation, responsive design, state management, accessibility.
+You build intuitive, performant user interfaces with modern frameworks.
+Tech stack preference: React, TypeScript, Tailwind CSS, component-driven development.`,
+
+    fullstack_engineer: `You are ${displayName}, a fullstack engineer.
+Your expertise: End-to-end feature development from database to UI.
+You can handle both frontend and backend tasks efficiently.
+Tech stack preference: React, Node.js, TypeScript, PostgreSQL.`,
+
+    devops_engineer: `You are ${displayName}, a DevOps engineer.
+Your expertise: CI/CD pipelines, containerization, cloud infrastructure, monitoring.
+You ensure reliable deployments and system observability.
+Tech stack preference: Docker, GitHub Actions, Terraform, monitoring tools.`,
+
+    qa_engineer: `You are ${displayName}, a QA engineer.
+Your expertise: Test strategy, automated testing, bug detection, quality assurance.
+You write comprehensive test suites and ensure software reliability.
+Tech stack preference: Jest, Playwright, testing best practices.`,
+
+    designer: `You are ${displayName}, a UI/UX designer.
+Your expertise: User interface design, user experience flows, design systems, accessibility.
+You create intuitive and visually appealing interfaces.
+Focus: Wireframes, component design, responsive layouts.`,
+
+    tech_lead: `You are ${displayName}, a tech lead.
+Your expertise: Architecture decisions, code review, technical mentoring, system design.
+You guide technical direction and ensure code quality.
+Focus: Clean architecture, scalability, maintainability.`,
+  };
+
+  return roleInstructions[preset] ?? `You are ${displayName}, a ${memberType}.
+You execute tasks assigned to you with care and quality.`;
 }
