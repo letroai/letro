@@ -77,27 +77,29 @@ export default function Tasks() {
       <div className="p-6 space-y-4">
         {/* Filter Bar */}
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                "shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                filter === f.value
-                  ? "bg-primary-500 text-white"
-                  : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
-              )}
-            >
-              {f.label}
-              {f.value !== "all" && (
-                <span className="ml-1.5 text-xs opacity-70">
-                  {allTasks.filter((t) =>
-                    f.value === "all" ? true : t.status === f.value,
-                  ).length}
-                </span>
-              )}
-            </button>
-          ))}
+          {FILTERS.map((f) => {
+            const count =
+              f.value === "all"
+                ? allTasks.length
+                : f.value === "waiting"
+                  ? allTasks.filter((t) => waitingStatuses.includes(t.status)).length
+                  : allTasks.filter((t) => t.status === f.value).length;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={cn(
+                  "shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  filter === f.value
+                    ? "bg-primary-500 text-white"
+                    : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
+                )}
+              >
+                {f.label}
+                <span className="ml-1.5 text-xs opacity-70">{count}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Task List */}
@@ -224,7 +226,14 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
           </Badge>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          {task.assigneeName && <span>{task.assigneeName}</span>}
+          {task.assigneeName && (
+            <span className="inline-flex items-center gap-1">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 text-[9px] font-bold shrink-0">
+                {task.assigneeName.charAt(0)}
+              </span>
+              <span>{task.assigneeName}</span>
+            </span>
+          )}
           {task.assigneeName && <span>&middot;</span>}
           <span>{formatTimeAgo(task.updatedAt)}</span>
         </div>
