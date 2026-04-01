@@ -5,8 +5,8 @@ export interface Task {
   projectId: string;
   title: string;
   description: string | null;
-  status: "open" | "in_progress" | "review" | "done" | "blocked";
-  priority: "low" | "medium" | "high" | "urgent";
+  status: string;
+  priority: string;
   assigneeId: string | null;
   assigneeName: string | null;
   parentId: string | null;

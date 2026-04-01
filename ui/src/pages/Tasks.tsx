@@ -12,12 +12,12 @@ import { formatTimeAgo } from "@/lib/format";
 import { ClipboardList, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FilterValue = "all" | "in_progress" | "open" | "done";
+type FilterValue = "all" | "in_progress" | "waiting" | "done";
 
 const FILTERS: { value: FilterValue; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "in_progress", label: "진행 중" },
-  { value: "open", label: "대기 중" },
+  { value: "waiting", label: "대기 중" },
   { value: "done", label: "완료" },
 ];
 
@@ -59,10 +59,13 @@ export default function Tasks() {
   }
 
   const allTasks = tasks ?? [];
+  const waitingStatuses = ["todo", "backlog", "open"];
   const filtered =
     filter === "all"
       ? allTasks
-      : allTasks.filter((t) => t.status === filter);
+      : filter === "waiting"
+        ? allTasks.filter((t) => waitingStatuses.includes(t.status))
+        : allTasks.filter((t) => t.status === filter);
 
   // Group tasks by status for display
   const grouped = groupByStatus(filtered);
@@ -139,34 +142,46 @@ export default function Tasks() {
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
-function groupByStatus(tasks: Task[]): [Task["status"], Task[]][] {
-  const order: Task["status"][] = [
+function groupByStatus(tasks: Task[]): [string, Task[]][] {
+  const order = [
     "in_progress",
+    "in_review",
     "review",
+    "todo",
+    "backlog",
     "open",
     "blocked",
     "done",
+    "cancelled",
   ];
-  const map = new Map<Task["status"], Task[]>();
+  const map = new Map<string, Task[]>();
   for (const t of tasks) {
     const list = map.get(t.status) ?? [];
     list.push(t);
     map.set(t.status, list);
   }
-  return order
-    .filter((s) => map.has(s))
-    .map((s) => [s, map.get(s)!]);
+  // Show groups in order, plus any unknown statuses at the end
+  const result: [string, Task[]][] = [];
+  for (const s of order) {
+    if (map.has(s)) { result.push([s, map.get(s)!]); map.delete(s); }
+  }
+  for (const [s, list] of map) { result.push([s, list]); }
+  return result;
 }
 
-function statusLabel(status: Task["status"]): string {
-  const labels: Record<Task["status"], string> = {
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
     open: "대기 중",
+    todo: "대기 중",
+    backlog: "대기 중",
     in_progress: "진행 중",
     review: "검토 중",
+    in_review: "검토 중",
     done: "완료",
+    cancelled: "취소",
     blocked: "차단됨",
   };
-  return labels[status];
+  return labels[status] ?? status;
 }
 
 function priorityBadgeVariant(
