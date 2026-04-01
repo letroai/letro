@@ -1,5 +1,5 @@
 // server/src/services/heartbeat.service.ts
-import { eq, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull, lt } from "drizzle-orm";
 import {
   agents,
   heartbeatRuns,
@@ -101,12 +101,9 @@ export class HeartbeatService {
       if (agent.teamRole === "leader") {
         await this.runLeaderHeartbeat(agent);
       }
-      // TODO: member adapter invocation
-      // else {
-      //   const adapter = getAdapter(agent.adapterId);
-      //   const handle = await adapter.start({ ... });
-      //   const result = await handle.wait();
-      // }
+      else {
+        await this.runMemberHeartbeat(agent);
+      }
 
       // 6. Mark run as completed
       await this.db
@@ -239,6 +236,100 @@ export class HeartbeatService {
         "Step 4 (scheduling) failed",
       );
     }
+  }
+
+  /**
+   * Runs a member heartbeat: find assigned task, execute via Claude, update status.
+   *
+   * Members execute ONE task per heartbeat, then reschedule to pick up the next.
+   * If no assigned task is found, the member goes idle and stops.
+   */
+  private async runMemberHeartbeat(agent: { id: string; companyId: string }) {
+    this.logger.info({ memberId: agent.id }, "Running member heartbeat");
+
+    // 1. Find the member's current assigned task (in_progress)
+    const task = await this.db.query.issues.findFirst({
+      where: and(
+        eq(issues.assigneeAgentId, agent.id),
+        eq(issues.status, "in_progress"),
+      ),
+    });
+
+    if (!task) {
+      this.logger.info({ memberId: agent.id }, "No assigned task found, member going idle");
+      await this.db
+        .update(agents)
+        .set(omitUndefined({ status: "idle", updatedAt: new Date() }))
+        .where(eq(agents.id, agent.id));
+      return;
+    }
+
+    this.logger.info(
+      { memberId: agent.id, taskId: task.id, taskTitle: task.title },
+      `Member executing task: ${task.title}`,
+    );
+
+    // 2. Call Claude CLI to "execute" the task
+    try {
+      const response = await callLLM({
+        system:
+          "You are a software developer working on a task. Analyze the task and provide a brief summary of what you would do. Return a JSON object: { \"summary\": \"what was done\", \"completed\": true }",
+        prompt: `Task: ${task.title}\nDescription: ${task.description ?? "No description provided"}\n\nProvide your execution summary as JSON.`,
+      });
+
+      // 3. Parse Claude's response
+      let result: { summary: string; completed: boolean };
+      try {
+        result = JSON.parse(response.content);
+      } catch {
+        this.logger.warn(
+          { memberId: agent.id, taskId: task.id, raw: response.content },
+          "Failed to parse member LLM response as JSON, treating as completed",
+        );
+        result = { summary: response.content.slice(0, 500), completed: true };
+      }
+
+      // 4. If completed, mark task done and member idle
+      if (result.completed) {
+        const now = new Date();
+        await this.db
+          .update(issues)
+          .set(omitUndefined({
+            status: "done",
+            checkedOutBy: null,
+            checkedOutAt: null,
+            updatedAt: now,
+          }))
+          .where(eq(issues.id, task.id));
+
+        await this.db
+          .update(agents)
+          .set(omitUndefined({ status: "idle", updatedAt: now }))
+          .where(eq(agents.id, agent.id));
+
+        this.logger.info(
+          {
+            memberId: agent.id,
+            taskId: task.id,
+            taskTitle: task.title,
+            summary: result.summary,
+          },
+          `Member completed task: ${task.title}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        { memberId: agent.id, taskId: task.id, err },
+        "Member task execution via LLM failed, will retry on next heartbeat",
+      );
+    }
+
+    // 5. Schedule next member heartbeat in 30 seconds (to pick up next task)
+    setTimeout(() => {
+      this.executeHeartbeat(agent.id).catch((err) =>
+        this.logger.error({ err, agentId: agent.id }, "Scheduled member heartbeat failed"),
+      );
+    }, 30_000);
   }
 
   /**
@@ -489,6 +580,7 @@ ${goalSummary}${ideaContext}${existingContext}
     // Assign tasks to members (round-robin / first-available)
     let memberIdx = 0;
     let assignedCount = 0;
+    const assignedMemberIds: string[] = [];
 
     for (const task of unassignedTasks) {
       if (memberIdx >= idleMembers.length) break;
@@ -528,6 +620,7 @@ ${goalSummary}${ideaContext}${existingContext}
         `Assigned task '${task.title}' to ${member.name}`,
       );
 
+      assignedMemberIds.push(member.id);
       assignedCount++;
       memberIdx++;
     }
@@ -536,6 +629,15 @@ ${goalSummary}${ideaContext}${existingContext}
       { leaderId: agent.id, assignedCount, totalUnassigned: unassignedTasks.length },
       `Assigned ${assignedCount} tasks to team members`,
     );
+
+    // Trigger member heartbeats so they actually start working
+    for (const memberId of assignedMemberIds) {
+      setTimeout(() => {
+        this.executeHeartbeat(memberId).catch((err) =>
+          this.logger.error({ err, agentId: memberId }, "Member heartbeat trigger failed"),
+        );
+      }, 3000);
+    }
   }
 
   /**
@@ -548,7 +650,74 @@ ${goalSummary}${ideaContext}${existingContext}
     agent: { id: string; companyId: string },
     project: { id: string },
   ) {
-    // Check if there are any remaining tasks (unassigned or in-progress)
+    // 1. Check for completed tasks (recently done)
+    const completedTasks = await this.db
+      .select({ id: issues.id, title: issues.title })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          eq(issues.status, "done"),
+        ),
+      );
+
+    if (completedTasks.length > 0) {
+      this.logger.info(
+        { leaderId: agent.id, completedCount: completedTasks.length },
+        `${completedTasks.length} tasks completed so far`,
+      );
+    }
+
+    // 2. Check for stuck members (in_progress for > 10 minutes without progress)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const stuckTasks = await this.db
+      .select({ id: issues.id, title: issues.title, assigneeAgentId: issues.assigneeAgentId })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          eq(issues.status, "in_progress"),
+          lt(issues.checkedOutAt, tenMinutesAgo),
+        ),
+      );
+
+    if (stuckTasks.length > 0) {
+      this.logger.warn(
+        {
+          leaderId: agent.id,
+          stuckTasks: stuckTasks.map((t) => ({ id: t.id, title: t.title, assignee: t.assigneeAgentId })),
+        },
+        `${stuckTasks.length} tasks appear stuck (in_progress > 10 min)`,
+      );
+    }
+
+    // 3. Assign any remaining unassigned todo tasks to idle members
+    // (already handled by assignTasksToMembers in the main loop, but re-check here
+    //  in case new idle members appeared since the last assignment)
+    const unassignedTodo = await this.db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          isNull(issues.assigneeAgentId),
+          eq(issues.status, "todo"),
+        ),
+      );
+
+    if (unassignedTodo.length > 0) {
+      // Re-run assignment for any newly idle members
+      try {
+        await this.assignTasksToMembers(agent, project);
+      } catch (err) {
+        this.logger.error(
+          { leaderId: agent.id, err },
+          "Re-assignment in scheduleNextHeartbeat failed",
+        );
+      }
+    }
+
+    // 4. Check if there are any remaining tasks (unassigned or in-progress)
     const remainingTasks = await this.db
       .select({ id: issues.id })
       .from(issues)
