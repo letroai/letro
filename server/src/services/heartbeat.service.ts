@@ -13,7 +13,7 @@ import {
 import type { ServiceDependencies } from "./index.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM } from "../lib/llm-client.js";
-import { MAX_TASKS_PER_CYCLE, DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
+import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 
 /**
@@ -151,8 +151,9 @@ export class HeartbeatService {
   /**
    * Runs the full leader heartbeat loop:
    *
-   * Step 1: Create tasks via Claude CLI (analyze goals, generate tasks)
-   * Step 2: Hire team members based on idea's team_composition
+   * Step 0: Promote backlog tasks whose dependencies are now met
+   * Step 1: Create tasks via Claude CLI (only if pending tasks are below threshold)
+   * Step 2: Hire team members based on idea's team_composition (+ dynamic scaling)
    * Step 3: Assign unassigned tasks to idle team members
    * Step 4: Schedule next heartbeat (self-sustaining loop)
    */
@@ -198,9 +199,60 @@ export class HeartbeatService {
       }
     }
 
-    // ── Step 1: Create tasks via Claude CLI ──
+    // ── Step 0: Promote backlog tasks whose dependencies are now met ──
     try {
-      await this.createTasksViaClaude(agent, project, goalData, goalLinks, ideaStructured);
+      await this.promoteUnblockedTasks(project);
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Step 0 (backlog promotion) failed, continuing to next steps",
+      );
+    }
+
+    // ── Step 1: Smart task creation gate ──
+    // Only create tasks if pending count is below threshold
+    try {
+      const existingIssues = await this.db
+        .select({ title: issues.title, status: issues.status })
+        .from(issues)
+        .where(eq(issues.projectId, project.id));
+
+      const taskCounts = {
+        todo: existingIssues.filter((i) => i.status === "todo").length,
+        inProgress: existingIssues.filter((i) => i.status === "in_progress").length,
+        backlog: existingIssues.filter((i) => i.status === "backlog").length,
+        done: existingIssues.filter((i) => i.status === "done").length,
+      };
+      const pendingTasks = taskCounts.todo + taskCounts.inProgress;
+
+      // Count current active team members
+      const existingMembers = await this.db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(
+          and(
+            eq(agents.projectId, project.id),
+            eq(agents.teamRole, "member"),
+            sql`${agents.status} != 'terminated'`,
+          ),
+        );
+
+      const memberCount = existingMembers.length;
+      const maxPendingTasks = Math.max(memberCount + 1, 3);
+
+      if (pendingTasks < maxPendingTasks) {
+        const maxNew = maxPendingTasks - pendingTasks;
+        this.logger.info(
+          { leaderId: agent.id, pendingTasks, maxPendingTasks, maxNew },
+          `Creating up to ${maxNew} new tasks (pending: ${pendingTasks}, max: ${maxPendingTasks})`,
+        );
+        await this.createTasksViaClaude(agent, project, goalData, goalLinks, ideaStructured, maxNew);
+      } else {
+        this.logger.info(
+          { leaderId: agent.id, pendingTasks, maxPendingTasks },
+          "Enough pending tasks, skipping task creation",
+        );
+      }
     } catch (err) {
       this.logger.error(
         { leaderId: agent.id, err },
@@ -360,6 +412,12 @@ Respond with a JSON object:
 
   /**
    * Step 1: Creates tasks by calling Claude CLI with project context.
+   *
+   * Includes dependency awareness: Claude marks which tasks depend on others
+   * and which can run in parallel. Blocked tasks go to "backlog", ready tasks
+   * go to "todo". Dependencies are stored in the issue's metadata jsonb field.
+   *
+   * @param maxNew - Maximum number of new tasks to create (based on pending task budget)
    */
   private async createTasksViaClaude(
     agent: { id: string; companyId: string },
@@ -367,14 +425,20 @@ Respond with a JSON object:
     goalData: Array<{ title: string; description: string | null }>,
     goalLinks: Array<{ goalId: string }>,
     ideaStructured: Record<string, unknown> | null,
+    maxNew: number,
   ) {
-    // Find existing issues to avoid duplicates
+    // Find existing issues to avoid duplicates and to inform dependency decisions
     const existingIssues = await this.db
       .select({ title: issues.title, status: issues.status })
       .from(issues)
       .where(eq(issues.projectId, project.id));
 
     const existingTitles = existingIssues.map((i) => `- ${i.title} (${i.status})`).join("\n");
+
+    // Build set of done titles for dependency resolution
+    const doneTitles = new Set(
+      existingIssues.filter((i) => i.status === "done").map((i) => i.title),
+    );
 
     // Build prompt and call Claude CLI
     const goalSummary = goalData
@@ -393,19 +457,35 @@ Respond with a JSON object:
 
 ${goalSummary}${ideaContext}${existingContext}
 
-규칙:
-- 최대 ${MAX_TASKS_PER_CYCLE}개의 작업을 생성하세요
-- 각 작업은 한 명의 팀원이 독립적으로 수행할 수 있어야 합니다
-- 이미 존재하는 작업과 중복되지 않아야 합니다
-- 작업은 구체적이고 실행 가능해야 합니다
-- 우선순위는 "critical", "high", "medium", "low" 중 하나입니다
-
 반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
 [
-  { "title": "작업 제목", "description": "구체적으로 무엇을 해야 하는지", "priority": "medium" }
-]`;
+  {
+    "title": "작업 제목",
+    "description": "구체적으로 무엇을 해야 하는지",
+    "priority": "medium",
+    "depends_on": [],
+    "parallel": true
+  }
+]
 
-    let tasksToCreate: Array<{ title: string; description: string; priority: string }> = [];
+규칙:
+- 현재 진행 중이거나 완료된 작업 이후의 다음 논리적 단계에 해당하는 작업만 생성하세요
+- 의존성 표시: 작업 B가 작업 A의 결과를 필요로 하면 A의 제목을 depends_on에 넣으세요
+- parallel: 진행 중인 작업에 의존하지 않으면 true로 표시
+- 먼 미래의 단계에 해당하는 작업은 생성하지 마세요
+- 최대 ${maxNew}개의 작업만 생성하세요
+- 이미 존재하는 작업과 중복되지 않아야 합니다
+- 각 작업은 한 명의 팀원이 독립적으로 수행할 수 있어야 합니다
+- 작업은 구체적이고 실행 가능해야 합니다
+- 우선순위는 "critical", "high", "medium", "low" 중 하나입니다`;
+
+    let tasksToCreate: Array<{
+      title: string;
+      description: string;
+      priority: string;
+      depends_on?: string[];
+      parallel?: boolean;
+    }> = [];
 
     const response = await callLLM({
       system: "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요.",
@@ -419,13 +499,13 @@ ${goalSummary}${ideaContext}${existingContext}
 
     tasksToCreate = parsed
       .filter(
-        (t: unknown): t is { title: string; description: string; priority: string } =>
+        (t: unknown): t is { title: string; description: string; priority: string; depends_on?: string[]; parallel?: boolean } =>
           typeof t === "object" &&
           t !== null &&
           typeof (t as Record<string, unknown>).title === "string" &&
           typeof (t as Record<string, unknown>).description === "string",
       )
-      .slice(0, MAX_TASKS_PER_CYCLE);
+      .slice(0, maxNew);
 
     this.logger.info(
       { leaderId: agent.id, taskCount: tasksToCreate.length },
@@ -442,32 +522,50 @@ ${goalSummary}${ideaContext}${existingContext}
 
     const linkedGoalId = goalLinks[0]?.goalId ?? null;
 
+    // Determine status based on dependency resolution:
+    // - If depends_on is empty or all deps are done -> "todo"
+    // - If depends_on has unmet dependencies -> "backlog"
+    const getStatus = (task: { depends_on?: string[] }): "todo" | "backlog" => {
+      const deps = task.depends_on ?? [];
+      if (deps.length === 0) {
+        return "todo";
+      }
+      const allDepsCompleted = deps.every((dep) => doneTitles.has(dep));
+      return allDepsCompleted ? "todo" : "backlog";
+    };
+
     const insertValues = tasksToCreate.map((task, idx) => ({
       companyId: agent.companyId,
       projectId: project.id,
       goalId: linkedGoalId,
       title: task.title,
       description: task.description,
-      status: "todo" as const,
+      status: getStatus(task),
       priority: validPriorities.has(task.priority) ? task.priority : "medium",
       originKind: "decomposition",
       autoApproved: true,
       createdByAgentId: agent.id,
       sortOrder: idx,
+      metadata: { depends_on: task.depends_on ?? [], parallel: task.parallel ?? true },
     }));
 
     const created = await this.db
       .insert(issues)
       .values(insertValues)
-      .returning({ id: issues.id, title: issues.title });
+      .returning({ id: issues.id, title: issues.title, status: issues.status });
+
+    const todoCount = created.filter((c) => c.status === "todo").length;
+    const backlogCount = created.filter((c) => c.status === "backlog").length;
 
     this.logger.info(
       {
         leaderId: agent.id,
         projectId: project.id,
-        createdTasks: created.map((c) => ({ id: c.id, title: c.title })),
+        createdTasks: created.map((c) => ({ id: c.id, title: c.title, status: c.status })),
+        todoCount,
+        backlogCount,
       },
-      `Leader heartbeat created ${created.length} tasks`,
+      `Leader heartbeat created ${created.length} tasks (${todoCount} todo, ${backlogCount} backlog)`,
     );
 
     publishLiveEvent(agent.companyId, {
@@ -480,19 +578,72 @@ ${goalSummary}${ideaContext}${existingContext}
   }
 
   /**
+   * Step 0: Promotes backlog tasks to todo when their dependencies are met.
+   *
+   * Checks all "backlog" tasks in the project. If a task's depends_on list
+   * (stored in metadata) is empty or all referenced tasks are now "done",
+   * the task is promoted to "todo" so it can be assigned to a member.
+   */
+  private async promoteUnblockedTasks(project: { id: string }) {
+    // Get all done task titles for dependency checking
+    const allIssues = await this.db
+      .select({ id: issues.id, title: issues.title, status: issues.status, metadata: issues.metadata })
+      .from(issues)
+      .where(eq(issues.projectId, project.id));
+
+    const doneTitles = new Set(
+      allIssues.filter((i) => i.status === "done").map((i) => i.title),
+    );
+
+    const backlogTasks = allIssues.filter((i) => i.status === "backlog");
+
+    if (backlogTasks.length === 0) return;
+
+    let promotedCount = 0;
+    for (const task of backlogTasks) {
+      const metadata = task.metadata as { depends_on?: string[] } | null;
+      const deps = metadata?.depends_on ?? [];
+
+      // Promote if no dependencies or all dependencies are done
+      if (deps.length === 0 || deps.every((dep) => doneTitles.has(dep))) {
+        await this.db
+          .update(issues)
+          .set({ status: "todo", updatedAt: new Date() })
+          .where(eq(issues.id, task.id));
+        promotedCount++;
+
+        this.logger.info(
+          { taskId: task.id, taskTitle: task.title, resolvedDeps: deps },
+          `Promoted backlog task to todo: ${task.title}`,
+        );
+      }
+    }
+
+    if (promotedCount > 0) {
+      this.logger.info(
+        { projectId: project.id, promotedCount, totalBacklog: backlogTasks.length },
+        `Promoted ${promotedCount} backlog tasks to todo`,
+      );
+    }
+  }
+
+  /**
    * Step 2: Hires team members based on the idea's team_composition.
    *
-   * Only hires if no non-leader agents exist for the project yet.
-   * Uses structured.team_composition.members from the original idea.
+   * - Initial hiring: if no members exist, hire from idea's team_composition
+   * - Dynamic scaling: if more assignable "todo" tasks than idle members, hire one more
+   *   (capped at MAX_TEAM_MEMBERS total)
    */
   private async hireTeamMembers(
     agent: { id: string; companyId: string },
     project: { id: string },
     ideaStructured: Record<string, unknown> | null,
   ) {
+    const MAX_TEAM_MEMBERS = 5;
+
     // Check if project already has team members (non-leader agents)
     const existingMembers = await this.db
-      .select({ id: agents.id })
+      .select({ id: agents.id, status: agents.status })
       .from(agents)
       .where(
         and(
@@ -502,51 +653,119 @@ ${goalSummary}${ideaContext}${existingContext}
         ),
       );
 
-    if (existingMembers.length > 0) {
+    // ── Initial hiring (no members yet) ──
+    if (existingMembers.length === 0) {
+      // Extract team_composition from idea structured data
+      const teamComposition = ideaStructured?.team_composition as {
+        members?: Array<{
+          preset: string;
+          member_type: string;
+          display_name: string;
+          reason?: string;
+        }>;
+      } | null;
+
+      if (!teamComposition?.members || teamComposition.members.length === 0) {
+        this.logger.info(
+          { leaderId: agent.id },
+          "No team_composition in idea structured data, skipping hiring",
+        );
+        return;
+      }
+
+      // Hire each member from the team_composition (up to cap)
+      const membersToHire = teamComposition.members.slice(0, MAX_TEAM_MEMBERS);
+      for (const member of membersToHire) {
+        const [newAgent] = await this.db
+          .insert(agents)
+          .values(
+            omitUndefined({
+              companyId: agent.companyId,
+              projectId: project.id,
+              name: member.display_name,
+              teamRole: "member",
+              memberType: member.member_type,
+              status: "idle",
+              adapterId: DEFAULT_ADAPTER_ID,
+              reportsTo: agent.id,
+              hiredByAgentId: agent.id,
+              specialization: [member.preset],
+              idleBehavior: "wait",
+              maxConcurrentTasks: 1,
+              systemPrompt: getMemberSystemPrompt(member.preset, member.member_type, member.display_name),
+            }),
+          )
+          .returning();
+
+        this.logger.info(
+          {
+            leaderId: agent.id,
+            memberId: newAgent!.id,
+            memberName: member.display_name,
+            preset: member.preset,
+          },
+          `Hired team member: ${member.display_name}`,
+        );
+
+        publishLiveEvent(agent.companyId, {
+          type: "activity",
+          agentName: "팀장",
+          agentRole: "leader",
+          message: `${member.display_name}을(를) 팀원으로 고용했어요`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       this.logger.info(
-        { leaderId: agent.id, memberCount: existingMembers.length },
-        "Team members already exist, skipping hiring",
+        { leaderId: agent.id, hiredCount: membersToHire.length },
+        `Hired ${membersToHire.length} team members from idea composition`,
       );
       return;
     }
 
-    // Extract team_composition from idea structured data
-    const teamComposition = ideaStructured?.team_composition as {
-      members?: Array<{
-        preset: string;
-        member_type: string;
-        display_name: string;
-        reason?: string;
-      }>;
-    } | null;
-
-    if (!teamComposition?.members || teamComposition.members.length === 0) {
+    // ── Dynamic scaling (members already exist) ──
+    // If there are more assignable todo tasks than idle members, hire one more
+    if (existingMembers.length >= MAX_TEAM_MEMBERS) {
       this.logger.info(
-        { leaderId: agent.id },
-        "No team_composition in idea structured data, skipping hiring",
+        { leaderId: agent.id, memberCount: existingMembers.length, max: MAX_TEAM_MEMBERS },
+        "Team at max capacity, skipping dynamic hiring",
       );
       return;
     }
 
-    // Hire each member from the team_composition
-    for (const member of teamComposition.members) {
+    const idleMemberCount = existingMembers.filter((m) => m.status === "idle").length;
+
+    const todoTasks = await this.db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          isNull(issues.assigneeAgentId),
+          eq(issues.status, "todo"),
+        ),
+      );
+
+    if (todoTasks.length > idleMemberCount) {
+      // Hire one more generalist member
+      const memberNumber = existingMembers.length + 1;
       const [newAgent] = await this.db
         .insert(agents)
         .values(
           omitUndefined({
             companyId: agent.companyId,
             projectId: project.id,
-            name: member.display_name,
+            name: `팀원 ${memberNumber}`,
             teamRole: "member",
-            memberType: member.member_type,
+            memberType: "engineer",
             status: "idle",
             adapterId: DEFAULT_ADAPTER_ID,
             reportsTo: agent.id,
             hiredByAgentId: agent.id,
-            specialization: [member.preset],
+            specialization: ["fullstack_engineer"],
             idleBehavior: "wait",
             maxConcurrentTasks: 1,
-            systemPrompt: getMemberSystemPrompt(member.preset, member.member_type, member.display_name),
+            systemPrompt: getMemberSystemPrompt("fullstack_engineer", "engineer", `팀원 ${memberNumber}`),
           }),
         )
         .returning();
@@ -555,25 +774,26 @@ ${goalSummary}${ideaContext}${existingContext}
         {
           leaderId: agent.id,
           memberId: newAgent!.id,
-          memberName: member.display_name,
-          preset: member.preset,
+          todoTasks: todoTasks.length,
+          idleMembers: idleMemberCount,
+          totalMembers: existingMembers.length + 1,
         },
-        `Hired team member: ${member.display_name}`,
+        `Dynamically hired 1 additional member (todo tasks: ${todoTasks.length}, idle members: ${idleMemberCount})`,
       );
 
       publishLiveEvent(agent.companyId, {
         type: "activity",
         agentName: "팀장",
         agentRole: "leader",
-        message: `${member.display_name}을(를) 팀원으로 고용했어요`,
+        message: `작업이 많아서 팀원 ${memberNumber}을(를) 추가로 고용했어요`,
         timestamp: new Date().toISOString(),
       });
+    } else {
+      this.logger.info(
+        { leaderId: agent.id, todoTasks: todoTasks.length, idleMembers: idleMemberCount },
+        "Sufficient idle members for pending tasks, skipping dynamic hiring",
+      );
     }
-
-    this.logger.info(
-      { leaderId: agent.id, hiredCount: teamComposition.members.length },
-      `Hired ${teamComposition.members.length} team members from idea composition`,
-    );
   }
 
   /**
@@ -768,14 +988,14 @@ ${goalSummary}${ideaContext}${existingContext}
       }
     }
 
-    // 4. Check if there are any remaining tasks (unassigned or in-progress)
+    // 4. Check if there are any remaining tasks (backlog, todo, or in-progress)
     const remainingTasks = await this.db
       .select({ id: issues.id })
       .from(issues)
       .where(
         and(
           eq(issues.projectId, project.id),
-          sql`${issues.status} IN ('todo', 'in_progress')`,
+          sql`${issues.status} IN ('backlog', 'todo', 'in_progress')`,
         ),
       );
 
