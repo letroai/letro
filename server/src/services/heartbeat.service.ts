@@ -1,5 +1,5 @@
 // server/src/services/heartbeat.service.ts
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import {
   agents,
   heartbeatRuns,
@@ -13,7 +13,7 @@ import {
 import type { ServiceDependencies } from "./index.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM } from "../lib/llm-client.js";
-import { MAX_TASKS_PER_CYCLE } from "../lib/defaults.js";
+import { MAX_TASKS_PER_CYCLE, DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 
 /**
  * Heartbeat service — Letro's core execution engine.
@@ -151,13 +151,12 @@ export class HeartbeatService {
   }
 
   /**
-   * Runs the leader heartbeat: analyzes goals and creates tasks via Claude CLI.
+   * Runs the full leader heartbeat loop:
    *
-   * 1. Find the leader's project
-   * 2. Find linked goals and the original idea's structured data
-   * 3. Find existing issues (to avoid duplicates)
-   * 4. Call Claude CLI with context to generate new tasks
-   * 5. Insert generated tasks into the DB
+   * Step 1: Create tasks via Claude CLI (analyze goals, generate tasks)
+   * Step 2: Hire team members based on idea's team_composition
+   * Step 3: Assign unassigned tasks to idle team members
+   * Step 4: Schedule next heartbeat (self-sustaining loop)
    */
   private async runLeaderHeartbeat(agent: { id: string; companyId: string }) {
     this.logger.info({ leaderId: agent.id }, "Running leader heartbeat");
@@ -201,7 +200,58 @@ export class HeartbeatService {
       }
     }
 
-    // 4. Find existing issues to avoid duplicates
+    // ── Step 1: Create tasks via Claude CLI ──
+    try {
+      await this.createTasksViaClaude(agent, project, goalData, goalLinks, ideaStructured);
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Step 1 (task creation) failed, continuing to next steps",
+      );
+    }
+
+    // ── Step 2: Hire team members based on idea's team_composition ──
+    try {
+      await this.hireTeamMembers(agent, project, ideaStructured);
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Step 2 (hiring) failed, continuing to next steps",
+      );
+    }
+
+    // ── Step 3: Assign unassigned tasks to idle team members ──
+    try {
+      await this.assignTasksToMembers(agent, project);
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Step 3 (task assignment) failed, continuing to next steps",
+      );
+    }
+
+    // ── Step 4: Schedule next heartbeat if work remains ──
+    try {
+      await this.scheduleNextHeartbeat(agent, project);
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Step 4 (scheduling) failed",
+      );
+    }
+  }
+
+  /**
+   * Step 1: Creates tasks by calling Claude CLI with project context.
+   */
+  private async createTasksViaClaude(
+    agent: { id: string; companyId: string },
+    project: { id: string; name: string },
+    goalData: Array<{ title: string; description: string | null }>,
+    goalLinks: Array<{ goalId: string }>,
+    ideaStructured: Record<string, unknown> | null,
+  ) {
+    // Find existing issues to avoid duplicates
     const existingIssues = await this.db
       .select({ title: issues.title, status: issues.status })
       .from(issues)
@@ -209,7 +259,7 @@ export class HeartbeatService {
 
     const existingTitles = existingIssues.map((i) => `- ${i.title} (${i.status})`).join("\n");
 
-    // 5. Build prompt and call Claude CLI
+    // Build prompt and call Claude CLI
     const goalSummary = goalData
       .map((g) => `목표: ${g.title}\n설명: ${g.description ?? "없음"}`)
       .join("\n\n");
@@ -240,40 +290,32 @@ ${goalSummary}${ideaContext}${existingContext}
 
     let tasksToCreate: Array<{ title: string; description: string; priority: string }> = [];
 
-    try {
-      const response = await callLLM({
-        system: "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요.",
-        prompt,
-      });
+    const response = await callLLM({
+      system: "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요.",
+      prompt,
+    });
 
-      const parsed = JSON.parse(response.content);
-      if (!Array.isArray(parsed)) {
-        throw new Error("LLM response is not an array");
-      }
-
-      tasksToCreate = parsed
-        .filter(
-          (t: unknown): t is { title: string; description: string; priority: string } =>
-            typeof t === "object" &&
-            t !== null &&
-            typeof (t as Record<string, unknown>).title === "string" &&
-            typeof (t as Record<string, unknown>).description === "string",
-        )
-        .slice(0, MAX_TASKS_PER_CYCLE);
-
-      this.logger.info(
-        { leaderId: agent.id, taskCount: tasksToCreate.length },
-        "Claude generated tasks for leader heartbeat",
-      );
-    } catch (err) {
-      this.logger.error(
-        { leaderId: agent.id, err },
-        "Failed to generate tasks via Claude CLI, skipping task creation",
-      );
-      return;
+    const parsed = JSON.parse(response.content);
+    if (!Array.isArray(parsed)) {
+      throw new Error("LLM response is not an array");
     }
 
-    // 6. Insert generated tasks into the DB
+    tasksToCreate = parsed
+      .filter(
+        (t: unknown): t is { title: string; description: string; priority: string } =>
+          typeof t === "object" &&
+          t !== null &&
+          typeof (t as Record<string, unknown>).title === "string" &&
+          typeof (t as Record<string, unknown>).description === "string",
+      )
+      .slice(0, MAX_TASKS_PER_CYCLE);
+
+    this.logger.info(
+      { leaderId: agent.id, taskCount: tasksToCreate.length },
+      "Claude generated tasks for leader heartbeat",
+    );
+
+    // Insert generated tasks into the DB
     if (tasksToCreate.length === 0) {
       this.logger.info({ leaderId: agent.id }, "No new tasks to create");
       return;
@@ -310,6 +352,231 @@ ${goalSummary}${ideaContext}${existingContext}
       },
       `Leader heartbeat created ${created.length} tasks`,
     );
+  }
+
+  /**
+   * Step 2: Hires team members based on the idea's team_composition.
+   *
+   * Only hires if no non-leader agents exist for the project yet.
+   * Uses structured.team_composition.members from the original idea.
+   */
+  private async hireTeamMembers(
+    agent: { id: string; companyId: string },
+    project: { id: string },
+    ideaStructured: Record<string, unknown> | null,
+  ) {
+    // Check if project already has team members (non-leader agents)
+    const existingMembers = await this.db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(
+        and(
+          eq(agents.projectId, project.id),
+          eq(agents.teamRole, "member"),
+          sql`${agents.status} != 'terminated'`,
+        ),
+      );
+
+    if (existingMembers.length > 0) {
+      this.logger.info(
+        { leaderId: agent.id, memberCount: existingMembers.length },
+        "Team members already exist, skipping hiring",
+      );
+      return;
+    }
+
+    // Extract team_composition from idea structured data
+    const teamComposition = ideaStructured?.team_composition as {
+      members?: Array<{
+        preset: string;
+        member_type: string;
+        display_name: string;
+        reason?: string;
+      }>;
+    } | null;
+
+    if (!teamComposition?.members || teamComposition.members.length === 0) {
+      this.logger.info(
+        { leaderId: agent.id },
+        "No team_composition in idea structured data, skipping hiring",
+      );
+      return;
+    }
+
+    // Hire each member from the team_composition
+    for (const member of teamComposition.members) {
+      const [newAgent] = await this.db
+        .insert(agents)
+        .values(
+          omitUndefined({
+            companyId: agent.companyId,
+            projectId: project.id,
+            name: member.display_name,
+            teamRole: "member",
+            memberType: member.member_type,
+            status: "idle",
+            adapterId: DEFAULT_ADAPTER_ID,
+            reportsTo: agent.id,
+            hiredByAgentId: agent.id,
+            specialization: [member.preset],
+            idleBehavior: "wait",
+            maxConcurrentTasks: 1,
+          }),
+        )
+        .returning();
+
+      this.logger.info(
+        {
+          leaderId: agent.id,
+          memberId: newAgent!.id,
+          memberName: member.display_name,
+          preset: member.preset,
+        },
+        `Hired team member: ${member.display_name}`,
+      );
+    }
+
+    this.logger.info(
+      { leaderId: agent.id, hiredCount: teamComposition.members.length },
+      `Hired ${teamComposition.members.length} team members from idea composition`,
+    );
+  }
+
+  /**
+   * Step 3: Assigns unassigned tasks to idle team members.
+   *
+   * Uses first-available matching: iterates unassigned tasks and assigns
+   * each to the next available idle member.
+   */
+  private async assignTasksToMembers(
+    agent: { id: string; companyId: string },
+    project: { id: string },
+  ) {
+    // Query unassigned tasks (status = 'todo', no assignee)
+    const unassignedTasks = await this.db
+      .select()
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          isNull(issues.assigneeAgentId),
+          eq(issues.status, "todo"),
+        ),
+      );
+
+    if (unassignedTasks.length === 0) {
+      this.logger.info({ leaderId: agent.id }, "No unassigned tasks to assign");
+      return;
+    }
+
+    // Query idle team members
+    const idleMembers = await this.db
+      .select()
+      .from(agents)
+      .where(
+        and(
+          eq(agents.projectId, project.id),
+          eq(agents.teamRole, "member"),
+          eq(agents.status, "idle"),
+        ),
+      );
+
+    if (idleMembers.length === 0) {
+      this.logger.info({ leaderId: agent.id }, "No idle team members available for assignment");
+      return;
+    }
+
+    // Assign tasks to members (round-robin / first-available)
+    let memberIdx = 0;
+    let assignedCount = 0;
+
+    for (const task of unassignedTasks) {
+      if (memberIdx >= idleMembers.length) break;
+
+      const member = idleMembers[memberIdx]!;
+      const now = new Date();
+
+      // Update issue: assign to member, mark as in_progress, check out
+      await this.db
+        .update(issues)
+        .set(omitUndefined({
+          assigneeAgentId: member.id,
+          status: "in_progress",
+          checkedOutBy: member.id,
+          checkedOutAt: now,
+          updatedAt: now,
+        }))
+        .where(eq(issues.id, task.id));
+
+      // Update agent: mark as working
+      await this.db
+        .update(agents)
+        .set(omitUndefined({
+          status: "working",
+          updatedAt: now,
+        }))
+        .where(eq(agents.id, member.id));
+
+      this.logger.info(
+        {
+          leaderId: agent.id,
+          memberId: member.id,
+          memberName: member.name,
+          taskId: task.id,
+          taskTitle: task.title,
+        },
+        `Assigned task '${task.title}' to ${member.name}`,
+      );
+
+      assignedCount++;
+      memberIdx++;
+    }
+
+    this.logger.info(
+      { leaderId: agent.id, assignedCount, totalUnassigned: unassignedTasks.length },
+      `Assigned ${assignedCount} tasks to team members`,
+    );
+  }
+
+  /**
+   * Step 4: Schedules the next heartbeat if work remains.
+   *
+   * The loop stops when there are no more unassigned tasks AND no in-progress tasks.
+   * Otherwise, schedules the next heartbeat in 60 seconds (MVP demo speed).
+   */
+  private async scheduleNextHeartbeat(
+    agent: { id: string; companyId: string },
+    project: { id: string },
+  ) {
+    // Check if there are any remaining tasks (unassigned or in-progress)
+    const remainingTasks = await this.db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, project.id),
+          sql`${issues.status} IN ('todo', 'in_progress')`,
+        ),
+      );
+
+    if (remainingTasks.length === 0) {
+      this.logger.info(
+        { leaderId: agent.id, projectId: project.id },
+        "All tasks completed, heartbeat loop stopping",
+      );
+      return;
+    }
+
+    this.logger.info(
+      { leaderId: agent.id, remainingTasks: remainingTasks.length },
+      "Scheduling next heartbeat in 60s",
+    );
+
+    setTimeout(() => {
+      this.executeHeartbeat(agent.id).catch((err) =>
+        this.logger.error({ err, agentId: agent.id }, "Scheduled heartbeat failed"),
+      );
+    }, 60_000);
   }
 
   /**
