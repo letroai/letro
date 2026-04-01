@@ -36,6 +36,31 @@ projectScopeRoutes.get("/projects/:projectId/tasks", async (c) => {
   return c.json({ issues: result.issues, total: result.total });
 });
 
+// GET /api/projects/:projectId/tasks/:taskId
+projectScopeRoutes.get("/projects/:projectId/tasks/:taskId", async (c) => {
+  const services = c.get("services");
+  const task = await services.issue.getById(c.req.param("taskId"));
+  if (!task) return c.json({ message: "작업을 찾을 수 없어요" }, 404);
+  return c.json(task);
+});
+
+// GET /api/projects/:projectId/tasks/:taskId/comments
+projectScopeRoutes.get("/projects/:projectId/tasks/:taskId/comments", async (c) => {
+  const services = c.get("services");
+  const comments = await services.issue.listComments(c.req.param("taskId"));
+  return c.json(comments);
+});
+
+// POST /api/projects/:projectId/tasks/:taskId/comments
+projectScopeRoutes.post("/projects/:projectId/tasks/:taskId/comments", async (c) => {
+  const services = c.get("services");
+  const body = await c.req.json() as Record<string, unknown>;
+  const comment = await services.issue.addComment(c.req.param("taskId"), {
+    body: String(body["body"] ?? ""),
+  });
+  return c.json(comment, 201);
+});
+
 // GET /api/projects/:projectId/goals
 projectScopeRoutes.get("/projects/:projectId/goals", async (c) => {
   const projectId = c.req.param("projectId");
