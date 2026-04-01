@@ -1,0 +1,25 @@
+{
+  "name": "@letro/core",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@letro/shared": "workspace:*",
+    "@letro/db": "workspace:*",
+    "@letro/adapter-utils": "workspace:*",
+    "@letro/queue": "workspace:*",
+    "@letro/events": "workspace:*",
+    "@letro/plugin-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

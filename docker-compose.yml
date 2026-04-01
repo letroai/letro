@@ -1,0 +1,22 @@
+# 외부 PostgreSQL이 필요한 경우에만 사용 (기본은 Embedded PG)
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: letro
+      POSTGRES_USER: letro
+      POSTGRES_PASSWORD: letro
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U letro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg-data:

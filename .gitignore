@@ -1,0 +1,39 @@
+# 의존성
+node_modules/
+
+# 빌드 출력
+dist/
+.turbo/
+*.tsbuildinfo
+
+# 환경 변수
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 테스트
+coverage/
+
+# Drizzle
+drizzle/meta/
+
+# 로그
+*.log
+pino-*.log
+
+# Vite
+ui/dist/
+
+# Embedded PostgreSQL
+.embedded-pg/
+pg-data/
