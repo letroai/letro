@@ -29,11 +29,29 @@ projectScopeRoutes.use("/projects/:projectId/*", async (c, next) => {
 projectScopeRoutes.get("/projects/:projectId/tasks", async (c) => {
   const projectId = c.req.param("projectId");
   const companyId = getCompanyId(c);
-  if (!companyId) return c.json({ error: "Company ID required" }, 400);
+  if (!companyId) return c.json({ issues: [], total: 0 });
 
   const services = c.get("services");
-  const result = await services.issue.list(companyId, { projectId });
-  return c.json({ issues: result.issues, total: result.total });
+  const filters: Record<string, string> = { projectId };
+  const status = c.req.query("status");
+  const assigneeId = c.req.query("assigneeId");
+  if (status) filters["status"] = status;
+  if (assigneeId) filters["assigneeAgentId"] = assigneeId;
+  const result = await services.issue.list(companyId, filters);
+
+  // Enrich issues with assignee name
+  const agentIds = [...new Set(result.issues.map((i: Record<string, unknown>) => i["assigneeAgentId"]).filter(Boolean))] as string[];
+  const agentNames: Record<string, string> = {};
+  for (const aid of agentIds) {
+    const agent = await services.agent.getById(aid);
+    if (agent) agentNames[aid] = (agent as Record<string, unknown>)["name"] as string;
+  }
+  const enriched = result.issues.map((i: Record<string, unknown>) => ({
+    ...i,
+    assigneeName: i["assigneeAgentId"] ? agentNames[i["assigneeAgentId"] as string] ?? null : null,
+  }));
+
+  return c.json({ issues: enriched, total: result.total });
 });
 
 // GET /api/projects/:projectId/tasks/:taskId
