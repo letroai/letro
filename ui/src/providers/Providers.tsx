@@ -6,9 +6,10 @@ import { LiveUpdatesProvider } from "./LiveUpdatesProvider";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       retry: 1,
-      staleTime: 10 * 1000, // 10 seconds default
+      staleTime: 0, // No cache during development
+      gcTime: 0,
     },
   },
 });
