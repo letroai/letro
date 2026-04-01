@@ -1,12 +1,19 @@
 // server/src/services/heartbeat.service.ts
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import {
   agents,
   heartbeatRuns,
   agentWakeupRequests,
+  issues,
+  projects,
+  projectGoals,
+  goals,
+  userIdeas,
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
+import { callLLM } from "../lib/llm-client.js";
+import { MAX_TASKS_PER_CYCLE } from "../lib/defaults.js";
 
 /**
  * Heartbeat service — Letro's core execution engine.
@@ -89,23 +96,37 @@ export class HeartbeatService {
       }))
       .where(eq(agents.id, agentId));
 
-    // 5. TODO: Actual adapter invocation
-    // if (agent.teamRole === "leader") {
-    //   await teamLeaderLoop.executeLeaderHeartbeat(agentId);
-    // } else {
-    //   const adapter = getAdapter(agent.adapterId);
-    //   const handle = await adapter.start({ ... });
-    //   const result = await handle.wait();
-    // }
+    // 5. Execute actual heartbeat logic based on agent role
+    try {
+      if (agent.teamRole === "leader") {
+        await this.runLeaderHeartbeat(agent);
+      }
+      // TODO: member adapter invocation
+      // else {
+      //   const adapter = getAdapter(agent.adapterId);
+      //   const handle = await adapter.start({ ... });
+      //   const result = await handle.wait();
+      // }
 
-    // 6. MVP: Immediately complete as stub
-    await this.db
-      .update(heartbeatRuns)
-      .set(omitUndefined({
-        status: "completed",
-        finishedAt: new Date(),
-      }))
-      .where(eq(heartbeatRuns.id, run!.id));
+      // 6. Mark run as completed
+      await this.db
+        .update(heartbeatRuns)
+        .set(omitUndefined({
+          status: "completed",
+          finishedAt: new Date(),
+        }))
+        .where(eq(heartbeatRuns.id, run!.id));
+    } catch (err) {
+      this.logger.error({ runId: run!.id, agentId, err }, "Heartbeat execution failed");
+
+      await this.db
+        .update(heartbeatRuns)
+        .set(omitUndefined({
+          status: "failed",
+          finishedAt: new Date(),
+        }))
+        .where(eq(heartbeatRuns.id, run!.id));
+    }
 
     // 7. Revert agent status to idle
     await this.db
@@ -127,6 +148,168 @@ export class HeartbeatService {
     });
 
     return completedRun!;
+  }
+
+  /**
+   * Runs the leader heartbeat: analyzes goals and creates tasks via Claude CLI.
+   *
+   * 1. Find the leader's project
+   * 2. Find linked goals and the original idea's structured data
+   * 3. Find existing issues (to avoid duplicates)
+   * 4. Call Claude CLI with context to generate new tasks
+   * 5. Insert generated tasks into the DB
+   */
+  private async runLeaderHeartbeat(agent: { id: string; companyId: string }) {
+    this.logger.info({ leaderId: agent.id }, "Running leader heartbeat");
+
+    // 1. Find the leader's project
+    const project = await this.db.query.projects.findFirst({
+      where: eq(projects.leaderAgentId, agent.id),
+    });
+    if (!project) {
+      this.logger.warn({ leaderId: agent.id }, "No project found for leader");
+      return;
+    }
+
+    // 2. Find linked goals
+    const goalLinks = await this.db
+      .select()
+      .from(projectGoals)
+      .where(eq(projectGoals.projectId, project.id));
+
+    let goalData: Array<{ title: string; description: string | null }> = [];
+    if (goalLinks.length > 0) {
+      const goalIds = goalLinks.map((l) => l.goalId);
+      const projectGoalList = await this.db
+        .select()
+        .from(goals)
+        .where(inArray(goals.id, goalIds));
+      goalData = projectGoalList.map((g) => ({
+        title: g.title,
+        description: g.description,
+      }));
+    }
+
+    // 3. Find the original idea's structured data (if available)
+    let ideaStructured: Record<string, unknown> | null = null;
+    if (goalData.length > 0) {
+      const idea = await this.db.query.userIdeas.findFirst({
+        where: eq(userIdeas.goalId, goalLinks[0]!.goalId),
+      });
+      if (idea?.structured) {
+        ideaStructured = idea.structured as Record<string, unknown>;
+      }
+    }
+
+    // 4. Find existing issues to avoid duplicates
+    const existingIssues = await this.db
+      .select({ title: issues.title, status: issues.status })
+      .from(issues)
+      .where(eq(issues.projectId, project.id));
+
+    const existingTitles = existingIssues.map((i) => `- ${i.title} (${i.status})`).join("\n");
+
+    // 5. Build prompt and call Claude CLI
+    const goalSummary = goalData
+      .map((g) => `목표: ${g.title}\n설명: ${g.description ?? "없음"}`)
+      .join("\n\n");
+
+    const ideaContext = ideaStructured
+      ? `\n\n아이디어 구조화 데이터:\n${JSON.stringify(ideaStructured, null, 2)}`
+      : "";
+
+    const existingContext = existingTitles
+      ? `\n\n이미 존재하는 작업 목록 (중복 생성 금지):\n${existingTitles}`
+      : "\n\n아직 생성된 작업이 없습니다.";
+
+    const prompt = `프로젝트 "${project.name}"의 팀장으로서 다음 목표를 달성하기 위한 구체적인 작업을 생성하세요.
+
+${goalSummary}${ideaContext}${existingContext}
+
+규칙:
+- 최대 ${MAX_TASKS_PER_CYCLE}개의 작업을 생성하세요
+- 각 작업은 한 명의 팀원이 독립적으로 수행할 수 있어야 합니다
+- 이미 존재하는 작업과 중복되지 않아야 합니다
+- 작업은 구체적이고 실행 가능해야 합니다
+- 우선순위는 "critical", "high", "medium", "low" 중 하나입니다
+
+반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
+[
+  { "title": "작업 제목", "description": "구체적으로 무엇을 해야 하는지", "priority": "medium" }
+]`;
+
+    let tasksToCreate: Array<{ title: string; description: string; priority: string }> = [];
+
+    try {
+      const response = await callLLM({
+        system: "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요.",
+        prompt,
+      });
+
+      const parsed = JSON.parse(response.content);
+      if (!Array.isArray(parsed)) {
+        throw new Error("LLM response is not an array");
+      }
+
+      tasksToCreate = parsed
+        .filter(
+          (t: unknown): t is { title: string; description: string; priority: string } =>
+            typeof t === "object" &&
+            t !== null &&
+            typeof (t as Record<string, unknown>).title === "string" &&
+            typeof (t as Record<string, unknown>).description === "string",
+        )
+        .slice(0, MAX_TASKS_PER_CYCLE);
+
+      this.logger.info(
+        { leaderId: agent.id, taskCount: tasksToCreate.length },
+        "Claude generated tasks for leader heartbeat",
+      );
+    } catch (err) {
+      this.logger.error(
+        { leaderId: agent.id, err },
+        "Failed to generate tasks via Claude CLI, skipping task creation",
+      );
+      return;
+    }
+
+    // 6. Insert generated tasks into the DB
+    if (tasksToCreate.length === 0) {
+      this.logger.info({ leaderId: agent.id }, "No new tasks to create");
+      return;
+    }
+
+    const validPriorities = new Set(["critical", "high", "medium", "low"]);
+
+    const linkedGoalId = goalLinks[0]?.goalId ?? null;
+
+    const insertValues = tasksToCreate.map((task, idx) => ({
+      companyId: agent.companyId,
+      projectId: project.id,
+      goalId: linkedGoalId,
+      title: task.title,
+      description: task.description,
+      status: "todo" as const,
+      priority: validPriorities.has(task.priority) ? task.priority : "medium",
+      originKind: "decomposition",
+      autoApproved: true,
+      createdByAgentId: agent.id,
+      sortOrder: idx,
+    }));
+
+    const created = await this.db
+      .insert(issues)
+      .values(insertValues)
+      .returning({ id: issues.id, title: issues.title });
+
+    this.logger.info(
+      {
+        leaderId: agent.id,
+        projectId: project.id,
+        createdTasks: created.map((c) => ({ id: c.id, title: c.title })),
+      },
+      `Leader heartbeat created ${created.length} tasks`,
+    );
   }
 
   /**

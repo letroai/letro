@@ -47,5 +47,14 @@ ideaRoutes.post("/ideas/:id/activate", async (c) => {
   const services = c.get("services");
   const userId = actor.kind === "user" ? actor.userId : "local-user";
   const project = await services.idea.activate(c.req.param("id"), userId);
+
+  // Fire-and-forget: trigger leader's first heartbeat to start creating tasks
+  services.heartbeat
+    .executeHeartbeat(project.leaderAgentId)
+    .catch((err: unknown) => {
+      const logger = c.get("logger");
+      logger.error({ leaderId: project.leaderAgentId, err }, "Leader first heartbeat failed");
+    });
+
   return c.json({ projectId: project.id, projectName: project.name }, 201);
 });

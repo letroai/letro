@@ -220,10 +220,8 @@ export class IdeaService {
       return { project: project!, leader: leader!, goal: goal! };
     });
 
-    // TODO: Trigger leader heartbeat wakeup
-    // - Schedule first heartbeat for leader agent to begin goal analysis
-    // - heartbeatService.scheduleWakeup(result.leader.id, "project_activated")
-    // e.g.: await this.deps.heartbeatService.scheduleWakeup(result.leader.id, "project_activated");
+    // Leader heartbeat is triggered by the route handler (fire-and-forget)
+    // after this method returns, to avoid blocking the activation response.
 
     this.logger.info(
       {
