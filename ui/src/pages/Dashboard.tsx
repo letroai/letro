@@ -7,6 +7,7 @@ import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { SimpleErrorMessage } from "@/components/shared/SimpleErrorMessage";
 import { Badge } from "@/components/ui/badge";
 import { formatCost, formatTimeAgo } from "@/lib/format";
+import { LiveActivityFeed } from "@/components/dashboard/LiveActivityFeed";
 import {
   Users,
   Play,
@@ -91,6 +92,9 @@ export default function Dashboard() {
             color="default"
           />
         </div>
+
+        {/* Live Activity Feed */}
+        <LiveActivityFeed />
 
         {/* Help Requests */}
         {helpRequests.length > 0 && (

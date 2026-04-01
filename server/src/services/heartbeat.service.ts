@@ -14,6 +14,7 @@ import type { ServiceDependencies } from "./index.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM } from "../lib/llm-client.js";
 import { MAX_TASKS_PER_CYCLE, DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
+import { publishLiveEvent } from "../ws/websocket-server.js";
 
 /**
  * Heartbeat service — Letro's core execution engine.
@@ -269,6 +270,14 @@ export class HeartbeatService {
       `Member executing task: ${task.title}`,
     );
 
+    publishLiveEvent(agent.companyId, {
+      type: "activity",
+      agentName: agent.name,
+      agentRole: "member",
+      message: `"${task.title}" 작업을 시작했어요`,
+      timestamp: new Date().toISOString(),
+    });
+
     // 2. Call Claude CLI to "execute" the task
     try {
       const response = await callLLM({
@@ -325,6 +334,14 @@ Respond with a JSON object:
           },
           `Member completed task: ${task.title}`,
         );
+
+        publishLiveEvent(agent.companyId, {
+          type: "activity",
+          agentName: agent.name,
+          agentRole: "member",
+          message: `"${task.title}" 작업을 완료했어요`,
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (err) {
       this.logger.error(
@@ -452,6 +469,14 @@ ${goalSummary}${ideaContext}${existingContext}
       },
       `Leader heartbeat created ${created.length} tasks`,
     );
+
+    publishLiveEvent(agent.companyId, {
+      type: "activity",
+      agentName: "팀장",
+      agentRole: "leader",
+      message: `${created.length}개의 작업을 생성했어요`,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   /**
@@ -535,6 +560,14 @@ ${goalSummary}${ideaContext}${existingContext}
         },
         `Hired team member: ${member.display_name}`,
       );
+
+      publishLiveEvent(agent.companyId, {
+        type: "activity",
+        agentName: "팀장",
+        agentRole: "leader",
+        message: `${member.display_name}을(를) 팀원으로 고용했어요`,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     this.logger.info(
@@ -629,6 +662,14 @@ ${goalSummary}${ideaContext}${existingContext}
         },
         `Assigned task '${task.title}' to ${member.name}`,
       );
+
+      publishLiveEvent(agent.companyId, {
+        type: "activity",
+        agentName: "팀장",
+        agentRole: "leader",
+        message: `"${task.title}" 작업을 ${member.name}에게 배정했어요`,
+        timestamp: new Date().toISOString(),
+      });
 
       assignedMemberIds.push(member.id);
       assignedCount++;

@@ -63,6 +63,11 @@ export function LiveUpdatesProvider({ children }: { children: React.ReactNode })
             void queryClient.invalidateQueries({ queryKey: prefix });
           }
         }
+
+        // Dispatch raw message so LiveActivityFeed and other listeners can consume it
+        window.dispatchEvent(
+          new MessageEvent("letro-ws-message", { data: event.data }),
+        );
       } catch {
         // Ignore parse failures
       }
