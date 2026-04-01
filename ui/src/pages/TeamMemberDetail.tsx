@@ -206,7 +206,7 @@ function MemberStatusBadge({ status }: { status: AgentDetail["status"] }) {
     error: { label: "문제 발생", variant: "danger" },
   };
 
-  const { label, variant } = config[status];
+  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }
 
@@ -222,6 +222,6 @@ function TaskStatusBadge({ status }: { status: Task["status"] }) {
     blocked: { label: "차단됨", variant: "danger" },
   };
 
-  const { label, variant } = config[status];
+  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }

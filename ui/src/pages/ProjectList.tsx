@@ -149,6 +149,6 @@ function ProjectStatusBadge({ status }: { status: Project["status"] }) {
     archived: { label: "보관됨", variant: "outline" },
   };
 
-  const { label, variant } = config[status];
+  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }

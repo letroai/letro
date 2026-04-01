@@ -140,6 +140,6 @@ function GoalStatusBadge({ status }: { status: Goal["status"] }) {
     abandoned: { label: "중단됨", variant: "outline" },
   };
 
-  const { label, variant } = config[status];
+  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }

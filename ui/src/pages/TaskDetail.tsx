@@ -241,33 +241,32 @@ function CommentBubble({ comment }: { comment: Comment }) {
   );
 }
 
-function TaskStatusBadge({ status }: { status: Task["status"] }) {
-  const config: Record<
-    Task["status"],
-    { label: string; variant: "default" | "success" | "warning" | "danger" | "outline" }
-  > = {
+function TaskStatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "outline" }> = {
     open: { label: "대기 중", variant: "outline" },
+    backlog: { label: "대기 중", variant: "outline" },
+    todo: { label: "대기 중", variant: "outline" },
     in_progress: { label: "진행 중", variant: "default" },
     review: { label: "검토 중", variant: "warning" },
+    in_review: { label: "검토 중", variant: "warning" },
     done: { label: "완료", variant: "success" },
     blocked: { label: "차단됨", variant: "danger" },
+    cancelled: { label: "취소", variant: "outline" },
   };
 
-  const { label, variant } = config[status];
+  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }
 
-function TaskPriorityBadge({ priority }: { priority: Task["priority"] }) {
-  const config: Record<
-    Task["priority"],
-    { label: string; variant: "default" | "warning" | "danger" | "outline" }
-  > = {
+function TaskPriorityBadge({ priority }: { priority: string }) {
+  const config: Record<string, { label: string; variant: "default" | "warning" | "danger" | "outline" }> = {
     low: { label: "낮음", variant: "outline" },
     medium: { label: "보통", variant: "default" },
     high: { label: "높음", variant: "warning" },
     urgent: { label: "긴급", variant: "danger" },
+    critical: { label: "긴급", variant: "danger" },
   };
 
-  const { label, variant } = config[priority];
+  const { label, variant } = config[priority] ?? { label: priority, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 }
