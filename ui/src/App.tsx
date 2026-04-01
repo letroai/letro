@@ -5,6 +5,7 @@ import { ProjectRedirect } from "@/components/auth/ProjectRedirect";
 import { AppShell } from "@/components/layout/AppShell";
 import { lazy, Suspense } from "react";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
+import { ErrorBoundary, DevConsoleOverlay } from "@/components/shared/DevErrorOverlay";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
@@ -26,8 +27,10 @@ const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 export function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Providers>
+        <DevConsoleOverlay />
         <Suspense fallback={<PageSkeleton variant="full" />}>
           <Routes>
             {/* Public pages */}
@@ -64,5 +67,6 @@ export function App() {
         </Suspense>
       </Providers>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

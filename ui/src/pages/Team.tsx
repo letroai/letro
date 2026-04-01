@@ -182,18 +182,21 @@ function TeamMemberCard({
   );
 }
 
-function StatusBadge({ status }: { status: TeamMember["status"] }) {
+function StatusBadge({ status }: { status: string }) {
   const config: Record<
-    TeamMember["status"],
+    string,
     { label: string; variant: "success" | "warning" | "danger" | "outline"; icon: React.ElementType }
   > = {
     active: { label: "활동 중", variant: "success", icon: CircleDot },
+    working: { label: "작업 중", variant: "success", icon: CircleDot },
     paused: { label: "일시 정지", variant: "warning", icon: Pause },
     idle: { label: "대기 중", variant: "outline", icon: Clock },
     error: { label: "문제 발생", variant: "danger", icon: AlertTriangle },
+    terminated: { label: "종료", variant: "outline", icon: Clock },
   };
 
-  const { label, variant, icon: Icon } = config[status];
+  const fallback = { label: status, variant: "outline" as const, icon: Clock };
+  const { label, variant, icon: Icon } = config[status] ?? fallback;
 
   return (
     <Badge variant={variant}>
