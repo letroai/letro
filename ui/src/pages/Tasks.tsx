@@ -217,11 +217,11 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
       className="w-full flex items-center justify-between rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-4 py-3 hover:border-[var(--border-hover)] hover:shadow-sm transition-all text-left"
     >
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-medium text-[var(--text-primary)] truncate min-w-0 flex-1">
             {task.title}
           </p>
-          <Badge variant={priorityBadgeVariant(task.priority)}>
+          <Badge variant={priorityBadgeVariant(task.priority)} className="shrink-0 whitespace-nowrap">
             {priorityLabel(task.priority)}
           </Badge>
         </div>
