@@ -12,7 +12,7 @@ import { FolderKanban, Plus, ArrowRight } from "lucide-react";
 
 export default function ProjectList() {
   const navigate = useNavigate();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: projects,
@@ -36,7 +36,7 @@ export default function ProjectList() {
     return (
       <div className="p-6">
         <SimpleErrorMessage
-          message={locale === "ko" ? "프로젝트 목록을 불러올 수 없어요." : "Failed to load projects."}
+          message={t("projectList.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -50,14 +50,14 @@ export default function ProjectList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-[var(--text-primary)]">
-          {locale === "ko" ? "프로젝트" : "Projects"}
+          {t("projectList.title")}
         </h1>
         <button
           onClick={() => navigate("/onboarding")}
           className="flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          {locale === "ko" ? "새 프로젝트" : "New Project"}
+          {t("projectList.new")}
         </button>
       </div>
 
@@ -65,8 +65,8 @@ export default function ProjectList() {
       {allProjects.length === 0 ? (
         <EmptyState
           icon={FolderKanban}
-          message={locale === "ko" ? "아직 프로젝트가 없어요. 아이디어 하나로 시작해 보세요!" : "No projects yet. Start with a single idea!"}
-          actionLabel={locale === "ko" ? "새 프로젝트 시작하기" : "Start a New Project"}
+          message={t("projectList.emptyWithCTA")}
+          actionLabel={t("projectList.startNew")}
           onAction={() => navigate("/onboarding")}
         />
       ) : (
@@ -84,7 +84,7 @@ export default function ProjectList() {
   );
 }
 
-/* ── Sub-components ──────────────────────────────────────────────── */
+/* -- Sub-components -------------------------------------------------------- */
 
 function ProjectCard({
   project,
@@ -93,7 +93,7 @@ function ProjectCard({
   project: Project;
   onClick: () => void;
 }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   return (
     <button
@@ -118,7 +118,7 @@ function ProjectCard({
           {/* Progress bar */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-              <span>{locale === "ko" ? "진행률" : "Progress"}</span>
+              <span>{t("projectList.progress")}</span>
               <span>{Math.round(project.progress * 100)}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
@@ -130,7 +130,7 @@ function ProjectCard({
           </div>
 
           <div className="flex items-center gap-3 pt-1 text-xs text-[var(--text-muted)]">
-            <span>{locale === "ko" ? "비용" : "Cost"}: {formatCost(project.totalCost)}</span>
+            <span>{t("projectList.cost")} {formatCost(project.totalCost)}</span>
             <span>&middot;</span>
             <span>{formatTimeAgo(project.updatedAt)}</span>
           </div>
@@ -142,20 +142,24 @@ function ProjectCard({
   );
 }
 
+const STATUS_KEY_MAP: Record<Project["status"], string> = {
+  active: "projectList.statusActive",
+  paused: "projectList.statusPaused",
+  completed: "projectList.statusCompleted",
+  archived: "projectList.statusArchived",
+};
+
+const STATUS_VARIANT_MAP: Record<Project["status"], "default" | "success" | "warning" | "outline"> = {
+  active: "default",
+  paused: "warning",
+  completed: "success",
+  archived: "outline",
+};
+
 function ProjectStatusBadge({ status }: { status: Project["status"] }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
-  const config: Record<
-    Project["status"],
-    { label: { ko: string; en: string }; variant: "default" | "success" | "warning" | "outline" }
-  > = {
-    active: { label: { ko: "진행 중", en: "Active" }, variant: "default" },
-    paused: { label: { ko: "일시 정지", en: "Paused" }, variant: "warning" },
-    completed: { label: { ko: "완료", en: "Completed" }, variant: "success" },
-    archived: { label: { ko: "보관됨", en: "Archived" }, variant: "outline" },
-  };
-
-  const entry = config[status] ?? { label: { ko: status, en: status }, variant: "outline" as const };
-  const label = locale === "ko" ? entry.label.ko : entry.label.en;
-  return <Badge variant={entry.variant}>{label}</Badge>;
+  const label = t(STATUS_KEY_MAP[status] ?? status);
+  const variant = STATUS_VARIANT_MAP[status] ?? "outline";
+  return <Badge variant={variant}>{label}</Badge>;
 }

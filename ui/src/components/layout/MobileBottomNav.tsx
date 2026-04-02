@@ -6,36 +6,34 @@ import { MobileMoreSheet } from "./MobileMoreSheet";
 import { useLocale } from "@/providers/LocaleProvider";
 
 interface TabDef {
-  ko: string;
-  en: string;
+  labelKey: string;
   icon: typeof Home;
   path: string;
 }
 
 const tabs: TabDef[] = [
-  { ko: "홈", en: "Home", icon: Home, path: "home" },
-  { ko: "작업", en: "Tasks", icon: CheckSquare, path: "tasks" },
-  { ko: "팀", en: "Team", icon: Users, path: "team" },
-  { ko: "결과", en: "Results", icon: FolderOpen, path: "results" },
+  { labelKey: "nav.home", icon: Home, path: "home" },
+  { labelKey: "nav.tasks_section", icon: CheckSquare, path: "tasks" },
+  { labelKey: "nav.team_section", icon: Users, path: "team" },
+  { labelKey: "nav.results", icon: FolderOpen, path: "results" },
 ];
 
 export function MobileBottomNav() {
   const { projectId } = useParams();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   return (
     <>
       <nav
         className="flex items-center justify-around h-14 border-t border-[var(--border-default)] bg-[var(--bg-app)] safe-area-pb"
         role="tablist"
-        aria-label={locale === "ko" ? "주요 메뉴" : "Main menu"}
+        aria-label={t("nav.mainMenu")}
       >
-        {tabs.map(({ ko, en, icon: Icon, path }) => {
+        {tabs.map(({ labelKey, icon: Icon, path }) => {
           const fullPath = `/p/${projectId}/${path}`;
           const isActive = location.pathname.startsWith(fullPath);
-          const label = locale === "ko" ? ko : en;
 
           return (
             <Link
@@ -51,7 +49,7 @@ export function MobileBottomNav() {
               )}
             >
               <Icon className="w-5 h-5" />
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </Link>
           );
         })}
@@ -60,10 +58,10 @@ export function MobileBottomNav() {
           onClick={() => setMoreOpen(true)}
           className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 text-[11px] text-[var(--text-muted)]"
           role="tab"
-          aria-label={locale === "ko" ? "더보기" : "More"}
+          aria-label={t("nav.more")}
         >
           <MoreHorizontal className="w-5 h-5" />
-          <span>{locale === "ko" ? "더보기" : "More"}</span>
+          <span>{t("nav.more")}</span>
         </button>
       </nav>
 

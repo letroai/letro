@@ -11,7 +11,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Costs() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: summary,
@@ -27,7 +27,7 @@ export default function Costs() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "비용" : "Costs"} />
+        <ProjectHeader title={t("costs.title")} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -36,9 +36,9 @@ export default function Costs() {
   if (error || !summary) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "비용" : "Costs"} />
+        <ProjectHeader title={t("costs.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "비용 정보를 불러올 수 없어요." : "Failed to load cost information."}
+          message={t("costs.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -49,7 +49,7 @@ export default function Costs() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "비용" : "Costs"} />
+      <ProjectHeader title={t("costs.title")} />
 
       <div className="p-6 space-y-6">
         {/* Cost Summary Card */}
@@ -59,16 +59,16 @@ export default function Costs() {
               <DollarSign className="w-5 h-5 text-[var(--text-muted)]" />
             </div>
             <div>
-              <p className="text-xs text-[var(--text-muted)]">{locale === "ko" ? "총 사용 비용" : "Total Cost"}</p>
+              <p className="text-xs text-[var(--text-muted)]">{t("costs.totalCost")}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
                 {formatCost(totalCost)}
               </p>
             </div>
           </div>
           <div className="text-sm text-[var(--text-secondary)]">
-            <span>{locale === "ko" ? `총 ${formatNumber(summary.totalTokens)} 토큰 사용` : `${formatNumber(summary.totalTokens)} tokens used`}</span>
+            <span>{t("costs.totalTokens", { n: formatNumber(summary.totalTokens) })}</span>
             <span className="mx-2">&middot;</span>
-            <span>{locale === "ko" ? `${formatNumber(summary.eventCount)}건 처리` : `${formatNumber(summary.eventCount)} events`}</span>
+            <span>{t("costs.totalEvents", { n: formatNumber(summary.eventCount) })}</span>
           </div>
         </div>
       </div>

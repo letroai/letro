@@ -3,16 +3,17 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { getUserPreferences, updateUserPreferences } from "@/api/userPreferences";
-import { type Locale, tr } from "@/lib/i18n";
+import { translate, type Locale } from "@/lib/i18n/index";
 
 interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  /** Translate a key. Supports {param} interpolation. */
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LocaleContext = createContext<LocaleContextValue>({
-  locale: "ko",
+  locale: "en",
   setLocale: () => {},
   t: (key) => key,
 });
@@ -27,9 +28,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Sync locale from server preferences
   useEffect(() => {
-    if (prefs?.locale) {
+    if (prefs?.locale && (prefs.locale === "ko" || prefs.locale === "en")) {
       setLocaleState(prefs.locale as Locale);
     }
   }, [prefs?.locale]);
@@ -46,7 +46,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     mutation.mutate({ locale: newLocale });
   }, [mutation]);
 
-  const t = useCallback((key: string) => tr(key, locale), [locale]);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) => translate(key, locale, params),
+    [locale],
+  );
 
   return (
     <LocaleContext value={{ locale, setLocale, t }}>

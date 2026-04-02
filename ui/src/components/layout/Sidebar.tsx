@@ -17,36 +17,36 @@ interface NavItem {
 export function Sidebar() {
   const { projectId } = useParams();
   const location = useLocation();
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const basePath = `/p/${projectId}`;
 
   const mainNav: NavItem[] = [
-    { label: locale === "ko" ? "홈" : "Home", icon: Home, path: `${basePath}/home` },
-    { label: locale === "ko" ? "알림" : "Inbox", icon: Bell, path: `${basePath}/inbox` },
-    { label: locale === "ko" ? "도움이 필요한 것" : "Help Needed", icon: HelpCircle, path: `${basePath}/help` },
+    { label: t("nav.home"), icon: Home, path: `${basePath}/home` },
+    { label: t("nav.inbox"), icon: Bell, path: `${basePath}/inbox` },
+    { label: t("nav.help"), icon: HelpCircle, path: `${basePath}/help` },
   ];
 
   const workNav: NavItem[] = [
-    { label: locale === "ko" ? "작업 목록" : "Tasks", icon: CheckSquare, path: `${basePath}/tasks` },
-    { label: locale === "ko" ? "목표" : "Goals", icon: Target, path: `${basePath}/goals` },
+    { label: t("nav.tasks"), icon: CheckSquare, path: `${basePath}/tasks` },
+    { label: t("nav.goals"), icon: Target, path: `${basePath}/goals` },
   ];
 
   const otherNav: NavItem[] = [
-    { label: locale === "ko" ? "결과물" : "Results", icon: FolderOpen, path: `${basePath}/results` },
-    { label: locale === "ko" ? "비용" : "Costs", icon: BarChart3, path: `${basePath}/costs` },
-    { label: locale === "ko" ? "활동 기록" : "Activity", icon: ActivityIcon, path: `${basePath}/activity` },
-    { label: locale === "ko" ? "설정" : "Settings", icon: Settings, path: `${basePath}/settings` },
+    { label: t("nav.results"), icon: FolderOpen, path: `${basePath}/results` },
+    { label: t("nav.costs"), icon: BarChart3, path: `${basePath}/costs` },
+    { label: t("nav.activity"), icon: ActivityIcon, path: `${basePath}/activity` },
+    { label: t("nav.settings"), icon: Settings, path: `${basePath}/settings` },
   ];
 
   return (
     <aside
       className="flex flex-col w-[200px] h-full bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] overflow-y-auto"
       role="navigation"
-      aria-label={locale === "ko" ? "프로젝트 메뉴" : "Project menu"}
+      aria-label={t("nav.projectMenu")}
     >
       <div className="px-3 py-3 border-b border-[var(--border-default)]">
         <h2 className="text-sm font-semibold text-[var(--text-primary)] truncate">
-          {locale === "ko" ? "프로젝트" : "Project"}
+          {t("nav.project")}
         </h2>
       </div>
 
@@ -59,7 +59,7 @@ export function Sidebar() {
           />
         ))}
 
-        <SidebarSectionLabel>{locale === "ko" ? "작업" : "Tasks"}</SidebarSectionLabel>
+        <SidebarSectionLabel>{t("nav.tasks_section")}</SidebarSectionLabel>
         {workNav.map((item) => (
           <SidebarNavItem
             key={item.path}
@@ -68,10 +68,10 @@ export function Sidebar() {
           />
         ))}
 
-        <SidebarSectionLabel>{locale === "ko" ? "팀" : "Team"}</SidebarSectionLabel>
+        <SidebarSectionLabel>{t("nav.team_section")}</SidebarSectionLabel>
         <SidebarTeamList projectId={projectId!} />
 
-        <SidebarSectionLabel>{locale === "ko" ? "기타" : "Other"}</SidebarSectionLabel>
+        <SidebarSectionLabel>{t("nav.other")}</SidebarSectionLabel>
         {otherNav.map((item) => (
           <SidebarNavItem
             key={item.path}

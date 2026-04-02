@@ -18,7 +18,7 @@ type FilterValue = "all" | "in_progress" | "waiting" | "done";
 export default function Tasks() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const [filter, setFilter] = useState<FilterValue>("all");
 
   const {
@@ -35,7 +35,7 @@ export default function Tasks() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "작업 목록" : "Tasks"} />
+        <ProjectHeader title={t("tasks.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -44,9 +44,9 @@ export default function Tasks() {
   if (error) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "작업 목록" : "Tasks"} />
+        <ProjectHeader title={t("tasks.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "작업 목록을 불러올 수 없어요." : "Failed to load tasks."}
+          message={t("tasks.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -67,16 +67,16 @@ export default function Tasks() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "작업 목록" : "Tasks"} />
+      <ProjectHeader title={t("tasks.title")} />
 
       <div className="p-6 space-y-4">
         {/* Filter Bar */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {([
-            { value: "all" as FilterValue, label: locale === "ko" ? "전체" : "All" },
-            { value: "in_progress" as FilterValue, label: locale === "ko" ? "진행 중" : "In Progress" },
-            { value: "waiting" as FilterValue, label: locale === "ko" ? "대기 중" : "Waiting" },
-            { value: "done" as FilterValue, label: locale === "ko" ? "완료" : "Done" },
+            { value: "all" as FilterValue, label: t("tasks.all") },
+            { value: "in_progress" as FilterValue, label: t("status.inProgress") },
+            { value: "waiting" as FilterValue, label: t("status.waiting") },
+            { value: "done" as FilterValue, label: t("status.done") },
           ]).map((f) => {
             const count =
               f.value === "all"
@@ -108,8 +108,8 @@ export default function Tasks() {
             icon={ClipboardList}
             message={
               filter === "all"
-                ? (locale === "ko" ? "아직 작업이 없어요. 프로젝트가 시작되면 자동으로 만들어져요." : "No tasks yet. Tasks will be created automatically when the project starts.")
-                : (locale === "ko" ? "해당 상태의 작업이 없어요." : "No tasks with this status.")
+                ? t("tasks.empty")
+                : t("tasks.emptyFilter")
             }
           />
         ) : (
@@ -119,7 +119,7 @@ export default function Tasks() {
                 statusTasks.length > 0 && (
                   <section key={status} className="space-y-2">
                     <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-                      {statusLabel(status, locale)} ({statusTasks.length})
+                      {statusLabel(status, t)} ({statusTasks.length})
                     </h3>
                     <div className="space-y-1">
                       {statusTasks.map((task) => (
@@ -174,17 +174,17 @@ function groupByStatus(tasks: Task[]): [string, Task[]][] {
   return result;
 }
 
-function statusLabel(status: string, locale: string = "ko"): string {
-  const labels: Record<string, { ko: string; en: string }> = {
-    waiting: { ko: "대기 중", en: "Waiting" },
-    in_progress: { ko: "진행 중", en: "In Progress" },
-    in_review: { ko: "검토 중", en: "In Review" },
-    done: { ko: "완료", en: "Done" },
-    cancelled: { ko: "취소", en: "Cancelled" },
-    blocked: { ko: "차단됨", en: "Blocked" },
+function statusLabel(status: string, t: (key: string) => string): string {
+  const keyMap: Record<string, string> = {
+    waiting: "status.waiting",
+    in_progress: "status.inProgress",
+    in_review: "status.inReview",
+    done: "status.done",
+    cancelled: "status.cancelled",
+    blocked: "status.blocked",
   };
-  const entry = labels[status];
-  return entry ? (locale === "ko" ? entry.ko : entry.en) : status;
+  const key = keyMap[status];
+  return key ? t(key) : status;
 }
 
 function priorityBadgeVariant(
@@ -199,21 +199,20 @@ function priorityBadgeVariant(
   return map[priority];
 }
 
-function priorityLabel(priority: Task["priority"], locale: string = "ko"): string {
-  const labels: Record<Task["priority"], { ko: string; en: string }> = {
-    low: { ko: "낮음", en: "Low" },
-    medium: { ko: "보통", en: "Medium" },
-    high: { ko: "높음", en: "High" },
-    urgent: { ko: "긴급", en: "Urgent" },
+function priorityLabel(priority: Task["priority"], t: (key: string) => string): string {
+  const keyMap: Record<Task["priority"], string> = {
+    low: "priority.low",
+    medium: "priority.medium",
+    high: "priority.high",
+    urgent: "priority.urgent",
   };
-  const entry = labels[priority];
-  return locale === "ko" ? entry.ko : entry.en;
+  return t(keyMap[priority]);
 }
 
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   return (
     <button
       onClick={onClick}
@@ -225,7 +224,7 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
             {task.title}
           </p>
           <Badge variant={priorityBadgeVariant(task.priority)} className="shrink-0 whitespace-nowrap">
-            {priorityLabel(task.priority, locale)}
+            {priorityLabel(task.priority, t)}
           </Badge>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">

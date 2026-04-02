@@ -27,7 +27,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export default function Inbox() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: notifications,
@@ -51,7 +51,7 @@ export default function Inbox() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "알림" : "Inbox"} />
+        <ProjectHeader title={t("inbox.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -60,9 +60,9 @@ export default function Inbox() {
   if (error) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "알림" : "Inbox"} />
+        <ProjectHeader title={t("inbox.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "알림을 불러올 수 없어요." : "Failed to load notifications."}
+          message={t("inbox.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -84,18 +84,18 @@ export default function Inbox() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "알림" : "Inbox"} />
+      <ProjectHeader title={t("inbox.title")} />
 
       <div className="p-6 space-y-6">
         {all.length === 0 ? (
-          <EmptyState icon={Bell} message={locale === "ko" ? "알림이 없어요." : "No notifications."} />
+          <EmptyState icon={Bell} message={t("inbox.empty")} />
         ) : (
           <>
             {/* Unread */}
             {unread.length > 0 && (
               <section className="space-y-2">
                 <h2 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-                  {locale === "ko" ? `읽지 않음 (${unread.length})` : `Unread (${unread.length})`}
+                  {t("inbox.unreadCount", { n: unread.length })}
                 </h2>
                 <div className="space-y-1">
                   {unread.map((n) => (
@@ -113,7 +113,7 @@ export default function Inbox() {
             {read.length > 0 && (
               <section className="space-y-2">
                 <h2 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-                  {locale === "ko" ? `읽음 (${read.length})` : `Read (${read.length})`}
+                  {t("inbox.readCount", { n: read.length })}
                 </h2>
                 <div className="space-y-1">
                   {read.map((n) => (
@@ -213,20 +213,20 @@ function notificationTypeIcon(type: Notification["type"]) {
 }
 
 function NotificationTypeBadge({ type }: { type: Notification["type"] }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const config: Record<
     Notification["type"],
-    { ko: string; en: string; variant: "default" | "success" | "warning" | "danger" }
+    { key: string; variant: "default" | "success" | "warning" | "danger" }
   > = {
-    help_needed: { ko: "도움", en: "Help", variant: "warning" },
-    approval_required: { ko: "확인", en: "Approval", variant: "warning" },
-    task_completed: { ko: "완료", en: "Done", variant: "success" },
-    budget_alert: { ko: "비용", en: "Cost", variant: "warning" },
-    error: { ko: "오류", en: "Error", variant: "danger" },
+    help_needed: { key: "inbox.typeHelp", variant: "warning" },
+    approval_required: { key: "inbox.typeApproval", variant: "warning" },
+    task_completed: { key: "inbox.typeDone", variant: "success" },
+    budget_alert: { key: "inbox.typeCost", variant: "warning" },
+    error: { key: "inbox.typeError", variant: "danger" },
   };
 
   const entry = config[type];
-  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : type;
+  const label = entry ? t(entry.key) : type;
   const variant = entry?.variant ?? "default" as const;
   return <Badge variant={variant}>{label}</Badge>;
 }

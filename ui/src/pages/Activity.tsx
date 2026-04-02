@@ -26,7 +26,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Activity() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data,
@@ -42,7 +42,7 @@ export default function Activity() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
+        <ProjectHeader title={t("activity.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -51,9 +51,9 @@ export default function Activity() {
   if (error) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
+        <ProjectHeader title={t("activity.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "활동 기록을 불러올 수 없어요." : "Failed to load activity."}
+          message={t("activity.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -64,13 +64,13 @@ export default function Activity() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
+      <ProjectHeader title={t("activity.title")} />
 
       <div className="p-6">
         {items.length === 0 ? (
           <EmptyState
             icon={ActivityIcon}
-            message={locale === "ko" ? "아직 활동 기록이 없어요." : "No activity yet."}
+            message={t("activity.empty")}
           />
         ) : (
           <div className="space-y-1">
@@ -146,23 +146,23 @@ function activityTypeIcon(type: ActivityItem["type"]) {
 }
 
 function ActivityTypeBadge({ type }: { type: ActivityItem["type"] }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const config: Record<
     ActivityItem["type"],
-    { ko: string; en: string; variant: "default" | "success" | "warning" | "danger" }
+    { key: string; variant: "default" | "success" | "warning" | "danger" }
   > = {
-    task_created: { ko: "작업 생성", en: "Task Created", variant: "default" },
-    task_completed: { ko: "작업 완료", en: "Task Done", variant: "success" },
-    agent_hired: { ko: "팀원 고용", en: "Member Hired", variant: "default" },
-    agent_fired: { ko: "팀원 해고", en: "Member Fired", variant: "warning" },
-    goal_completed: { ko: "목표 달성", en: "Goal Done", variant: "success" },
-    approval_requested: { ko: "확인 요청", en: "Approval", variant: "warning" },
-    error_occurred: { ko: "오류", en: "Error", variant: "danger" },
-    cost_alert: { ko: "비용 알림", en: "Cost Alert", variant: "warning" },
+    task_created: { key: "activityType.taskCreated", variant: "default" },
+    task_completed: { key: "activityType.taskCompleted", variant: "success" },
+    agent_hired: { key: "activityType.agentHired", variant: "default" },
+    agent_fired: { key: "activityType.agentFired", variant: "warning" },
+    goal_completed: { key: "activityType.goalCompleted", variant: "success" },
+    approval_requested: { key: "activityType.approvalRequested", variant: "warning" },
+    error_occurred: { key: "activityType.errorOccurred", variant: "danger" },
+    cost_alert: { key: "activityType.costAlert", variant: "warning" },
   };
 
   const entry = config[type];
-  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : type;
+  const label = entry ? t(entry.key) : type;
   const variant = entry?.variant ?? "default" as const;
   return <Badge variant={variant}>{label}</Badge>;
 }

@@ -17,7 +17,7 @@ import {
 
 export default function HelpCenter() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const navigate = useNavigate();
 
   const {
@@ -34,7 +34,7 @@ export default function HelpCenter() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
+        <ProjectHeader title={t("helpCenter.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -43,9 +43,9 @@ export default function HelpCenter() {
   if (error || !dashboard) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
+        <ProjectHeader title={t("helpCenter.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "정보를 불러올 수 없어요." : "Failed to load information."}
+          message={t("helpCenter.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -56,22 +56,20 @@ export default function HelpCenter() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
+      <ProjectHeader title={t("helpCenter.title")} />
 
       <div className="p-6 space-y-4">
         {helpRequests.length === 0 ? (
           <div className="space-y-4">
             <EmptyState
               icon={CheckCircle2}
-              message={locale === "ko" ? "지금은 도움이 필요한 것이 없어요. 팀이 잘 진행하고 있어요!" : "No help needed right now. The team is doing great!"}
+              message={t("helpCenter.allGood")}
             />
           </div>
         ) : (
           <>
             <p className="text-sm text-[var(--text-secondary)]">
-              {locale === "ko"
-                ? "팀원이 진행하다가 결정이 필요하거나 도움이 필요할 때 여기에 나타나요."
-                : "When a team member needs a decision or help while working, it appears here."}
+              {t("helpCenter.listDescription")}
             </p>
             <div className="space-y-3">
               {helpRequests.map((request, idx) => (
@@ -83,7 +81,7 @@ export default function HelpCenter() {
                   <MessageSquare className="w-5 h-5 text-warning-500 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {String(request["title"] ?? request["taskTitle"] ?? (locale === "ko" ? "도움 요청" : "Help Request"))}
+                      {String(request["title"] ?? request["taskTitle"] ?? t("helpCenter.fallback"))}
                     </p>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
                       {String(request["message"] ?? request["description"] ?? "")}
@@ -103,7 +101,7 @@ export default function HelpCenter() {
   );
 }
 
-/* ── Sub-components ──────────────────────────────────────────────── */
+/* -- Sub-components -------------------------------------------------------- */
 
 function HelpRequestCard({
   request,

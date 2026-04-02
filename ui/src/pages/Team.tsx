@@ -20,7 +20,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export default function Team() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: team,
@@ -36,7 +36,7 @@ export default function Team() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "팀" : "Team"} />
+        <ProjectHeader title={t("team.title")} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -45,9 +45,9 @@ export default function Team() {
   if (error || !team) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "팀" : "Team"} />
+        <ProjectHeader title={t("team.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "팀 정보를 불러올 수 없어요." : "Failed to load team."}
+          message={t("team.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -58,14 +58,14 @@ export default function Team() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "팀" : "Team"} />
+      <ProjectHeader title={t("team.title")} />
 
       <div className="p-6 space-y-6">
         {/* Team Leader */}
         {team.leader && (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-              {locale === "ko" ? "팀장" : "Leader"}
+              {t("team.leader")}
             </h2>
             <TeamLeaderCard
               member={team.leader}
@@ -80,7 +80,7 @@ export default function Team() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">
-              {locale === "ko" ? `팀원 (${team.members.length}명)` : `Members (${team.members.length})`}
+              {t("team.members")} ({t("onboarding.members", { n: team.members.length })})
             </h2>
           </div>
 
@@ -100,7 +100,7 @@ export default function Team() {
             !team.leader && (
               <EmptyState
                 icon={Users}
-                message={locale === "ko" ? "아직 팀원이 없어요. 프로젝트가 시작되면 자동으로 팀이 구성돼요." : "No team members yet. The team will be assembled automatically when the project starts."}
+                message={t("team.noMembers")}
               />
             )
           )}
@@ -153,7 +153,7 @@ function TeamMemberCard({
   member: TeamMember;
   onClick: () => void;
 }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   return (
     <button
       onClick={onClick}
@@ -176,7 +176,7 @@ function TeamMemberCard({
             </p>
           ) : (
             <p className="text-xs text-[var(--text-muted)] mt-1">
-              {locale === "ko" ? "대기 중" : "Idle"}
+              {t("status.idle")}
             </p>
           )}
         </div>
@@ -186,23 +186,23 @@ function TeamMemberCard({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const config: Record<
     string,
-    { ko: string; en: string; variant: "success" | "warning" | "danger" | "outline"; icon: React.ElementType }
+    { key: string; variant: "success" | "warning" | "danger" | "outline"; icon: React.ElementType }
   > = {
-    active: { ko: "활동 중", en: "Active", variant: "success", icon: CircleDot },
-    working: { ko: "작업 중", en: "Working", variant: "success", icon: CircleDot },
-    paused: { ko: "일시 정지", en: "Paused", variant: "warning", icon: Pause },
-    idle: { ko: "대기 중", en: "Idle", variant: "outline", icon: Clock },
-    error: { ko: "문제 발생", en: "Error", variant: "danger", icon: AlertTriangle },
-    terminated: { ko: "종료", en: "Terminated", variant: "outline", icon: Clock },
+    active: { key: "status.active", variant: "success", icon: CircleDot },
+    working: { key: "status.working", variant: "success", icon: CircleDot },
+    paused: { key: "status.paused", variant: "warning", icon: Pause },
+    idle: { key: "status.idle", variant: "outline", icon: Clock },
+    error: { key: "status.error", variant: "danger", icon: AlertTriangle },
+    terminated: { key: "status.terminated", variant: "outline", icon: Clock },
   };
 
-  const fallback = { ko: status, en: status, variant: "outline" as const, icon: Clock };
-  const entry = config[status] ?? fallback;
-  const label = locale === "ko" ? entry.ko : entry.en;
-  const { variant, icon: Icon } = entry;
+  const entry = config[status];
+  const label = entry ? t(entry.key) : status;
+  const variant = entry?.variant ?? "outline" as const;
+  const Icon = entry?.icon ?? Clock;
 
   return (
     <Badge variant={variant} className="shrink-0 whitespace-nowrap">

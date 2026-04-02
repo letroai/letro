@@ -26,7 +26,7 @@ export default function TeamMemberDetail() {
     memberId: string;
   }>();
 
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: agent,
@@ -48,7 +48,7 @@ export default function TeamMemberDetail() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "팀원" : "Member"} />
+        <ProjectHeader title={t("team.memberDetail")} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -57,9 +57,9 @@ export default function TeamMemberDetail() {
   if (error || !agent) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "팀원" : "Member"} />
+        <ProjectHeader title={t("team.memberDetail")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "팀원 정보를 불러올 수 없어요." : "Could not load member info."}
+          message={t("team.memberFailedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -67,7 +67,7 @@ export default function TeamMemberDetail() {
   }
 
   const isLeader = agent.teamRole === "leader";
-  const roleLabel = isLeader ? (locale === "ko" ? "팀장" : "Leader") : (locale === "ko" ? "팀원" : "Member");
+  const roleLabel = isLeader ? (locale === "ko" ? "팀장" : "Leader") : (t("team.memberDetail"));
   const assignedTasks = tasks ?? [];
   const inProgressTasks = assignedTasks.filter(
     (t) => t.status === "in_progress",

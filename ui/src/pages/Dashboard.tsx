@@ -21,7 +21,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export default function Dashboard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: dashboard,
@@ -37,7 +37,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
+        <ProjectHeader title={t("nav.home")} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -46,9 +46,9 @@ export default function Dashboard() {
   if (error || !dashboard) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
+        <ProjectHeader title={t("nav.home")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "대시보드 정보를 불러올 수 없어요." : "Failed to load dashboard."}
+          message={t("dashboard.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -64,32 +64,32 @@ export default function Dashboard() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
+      <ProjectHeader title={t("nav.home")} />
 
       <div className="p-6 space-y-6">
         {/* Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard
             icon={Users}
-            label={locale === "ko" ? "팀원" : "Members"}
-            value={locale === "ko" ? `${activeAgents}명` : `${activeAgents}`}
+            label={t("team.members")}
+            value={t("onboarding.members", { n: activeAgents })}
             color="primary"
           />
           <MetricCard
             icon={Play}
-            label={locale === "ko" ? "진행 중" : "In Progress"}
-            value={locale === "ko" ? `${inProgressIssues}개` : `${inProgressIssues}`}
+            label={t("status.inProgress")}
+            value={`${inProgressIssues}`}
             color="warning"
           />
           <MetricCard
             icon={CheckCircle2}
-            label={locale === "ko" ? "완료" : "Done"}
-            value={locale === "ko" ? `${completedIssues}개` : `${completedIssues}`}
+            label={t("status.done")}
+            value={`${completedIssues}`}
             color="success"
           />
           <MetricCard
             icon={DollarSign}
-            label={locale === "ko" ? "이번 달" : "This Month"}
+            label={t("costs.totalCost")}
             value={formatCost(monthlyCostCents)}
             color="default"
           />
@@ -103,13 +103,13 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                {locale === "ko" ? "도움이 필요해요" : "Help Needed"}
+                {t("nav.help")}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/help`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                {locale === "ko" ? "전체 보기" : "View All"}
+                {t("common.viewAll")}
               </button>
             </div>
             <div className="space-y-2">
@@ -121,7 +121,7 @@ export default function Dashboard() {
                   <AlertCircle className="w-5 h-5 text-warning-500 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {String(req["taskTitle"] ?? req["title"] ?? (locale === "ko" ? "도움 요청" : "Help Request"))}
+                      {String(req["taskTitle"] ?? req["title"] ?? t("helpCenter.fallback"))}
                     </p>
                     <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-2">
                       {String(req["message"] ?? req["description"] ?? "")}
@@ -141,22 +141,20 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                {locale === "ko" ? "팀 활동" : "Team Activity"}
+                {t("dashboard.teamActivity")}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/team`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                {locale === "ko" ? "팀 보기" : "View Team"}
+                {t("dashboard.viewTeam")}
               </button>
             </div>
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-[var(--text-muted)]" />
                 <p className="text-sm text-[var(--text-secondary)]">
-                  {locale === "ko"
-                    ? `현재 팀원 ${activeAgents}명이 ${inProgressIssues}개의 작업을 진행하고 있어요.`
-                    : `${activeAgents} member(s) working on ${inProgressIssues} task(s).`}
+                  {t("dashboard.activeMembers", { n: activeAgents })}
                 </p>
               </div>
             </div>
@@ -168,13 +166,13 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                {locale === "ko" ? "최근 활동" : "Recent Activity"}
+                {t("dashboard.recentActivity")}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/activity`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                {locale === "ko" ? "전체 보기" : "View All"}
+                {t("common.viewAll")}
               </button>
             </div>
             <div className="space-y-1">
@@ -236,16 +234,16 @@ function MetricCard({ icon: Icon, label, value, color }: MetricCardProps) {
 }
 
 function ActivityTypeBadge({ type }: { type: string }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const labelMap: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" }> = {
-    task_created: { label: locale === "ko" ? "작업" : "Task", variant: "default" },
-    task_completed: { label: locale === "ko" ? "완료" : "Done", variant: "success" },
-    agent_hired: { label: locale === "ko" ? "고용" : "Hired", variant: "default" },
-    agent_fired: { label: locale === "ko" ? "해고" : "Fired", variant: "warning" },
-    goal_completed: { label: locale === "ko" ? "목표" : "Goal", variant: "success" },
-    approval_requested: { label: locale === "ko" ? "확인" : "Approval", variant: "warning" },
-    error_occurred: { label: locale === "ko" ? "오류" : "Error", variant: "danger" },
-    cost_alert: { label: locale === "ko" ? "비용" : "Cost", variant: "warning" },
+    task_created: { label: t("activityType.task"), variant: "default" },
+    task_completed: { label: t("activityType.done"), variant: "success" },
+    agent_hired: { label: t("activityType.hired"), variant: "default" },
+    agent_fired: { label: t("activityType.fired"), variant: "warning" },
+    goal_completed: { label: t("activityType.goal"), variant: "success" },
+    approval_requested: { label: t("activityType.approval"), variant: "warning" },
+    error_occurred: { label: t("activityType.error"), variant: "danger" },
+    cost_alert: { label: t("activityType.cost"), variant: "warning" },
   };
 
   const info = labelMap[type] ?? { label: type, variant: "default" as const };

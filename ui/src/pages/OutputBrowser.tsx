@@ -26,7 +26,7 @@ import {
 
 export default function OutputBrowser() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -67,7 +67,7 @@ export default function OutputBrowser() {
   if (treeLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
+        <ProjectHeader title={t("results.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -76,9 +76,9 @@ export default function OutputBrowser() {
   if (treeError) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
+        <ProjectHeader title={t("results.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "결과물을 불러올 수 없어요." : "Failed to load outputs."}
+          message={t("results.failedLoad")}
           onRetry={() => refetchTree()}
         />
       </div>
@@ -90,10 +90,10 @@ export default function OutputBrowser() {
   if (allNodes.length === 0) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
+        <ProjectHeader title={t("results.title")} />
         <EmptyState
           icon={FolderOpen}
-          message={locale === "ko" ? "아직 결과물이 없어요. 작업이 완료되면 여기에 나타나요." : "No outputs yet. They will appear here when tasks are completed."}
+          message={t("results.noOutputsYet")}
         />
       </div>
     );
@@ -103,7 +103,7 @@ export default function OutputBrowser() {
   if (isMobile) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
+        <ProjectHeader title={t("results.title")} />
         {showPreview && selectedPath ? (
           <div>
             <button
@@ -111,7 +111,7 @@ export default function OutputBrowser() {
               className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-primary-500 hover:text-primary-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              {locale === "ko" ? "파일 목록으로" : "Back to file list"}
+              {t("results.backToList")}
             </button>
             <FilePreview
               content={fileContent ?? null}
@@ -135,7 +135,7 @@ export default function OutputBrowser() {
   // Desktop: two-column layout
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
+      <ProjectHeader title={t("results.title")} />
       <div className="flex h-[calc(100dvh-57px)]">
         {/* Left: File tree */}
         <div className="w-64 shrink-0 border-r border-[var(--border-default)] overflow-y-auto p-4">
@@ -156,7 +156,7 @@ export default function OutputBrowser() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-sm text-[var(--text-muted)]">
-                {locale === "ko" ? "왼쪽에서 파일을 선택하세요." : "Select a file from the left."}
+                {t("results.selectFile")}
               </p>
             </div>
           )}
@@ -166,7 +166,7 @@ export default function OutputBrowser() {
   );
 }
 
-/* ── Sub-components ──────────────────────────────────────────────── */
+/* -- Sub-components -------------------------------------------------------- */
 
 function FileExplorer({
   nodes,
@@ -266,7 +266,7 @@ function FilePreview({
   isLoading: boolean;
   error: Error | null;
 }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   if (isLoading) {
     return <PageSkeleton variant="content" />;
@@ -274,7 +274,7 @@ function FilePreview({
 
   if (error) {
     return (
-      <SimpleErrorMessage message={locale === "ko" ? "파일을 불러올 수 없어요." : "Failed to load file."} />
+      <SimpleErrorMessage message={t("results.fileFailedLoad")} />
     );
   }
 
@@ -303,7 +303,7 @@ function FilePreview({
   );
 }
 
-/* ── Helpers ─────────────────────────────────────────────────────── */
+/* -- Helpers --------------------------------------------------------------- */
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;

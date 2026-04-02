@@ -13,7 +13,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Goals() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { locale } = useLocale();
+  const { t } = useLocale();
 
   const {
     data: goals,
@@ -29,7 +29,7 @@ export default function Goals() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "목표" : "Goals"} />
+        <ProjectHeader title={t("goals.title")} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -38,9 +38,9 @@ export default function Goals() {
   if (error) {
     return (
       <div>
-        <ProjectHeader title={locale === "ko" ? "목표" : "Goals"} />
+        <ProjectHeader title={t("goals.title")} />
         <SimpleErrorMessage
-          message={locale === "ko" ? "목표를 불러올 수 없어요." : "Failed to load goals."}
+          message={t("goals.failedLoad")}
           onRetry={() => refetch()}
         />
       </div>
@@ -51,13 +51,13 @@ export default function Goals() {
 
   return (
     <div>
-      <ProjectHeader title={locale === "ko" ? "목표" : "Goals"} />
+      <ProjectHeader title={t("goals.title")} />
 
       <div className="p-6 space-y-4">
         {allGoals.length === 0 ? (
           <EmptyState
             icon={Target}
-            message={locale === "ko" ? "아직 목표가 없어요. 프로젝트가 시작되면 자동으로 생성돼요." : "No goals yet. Goals will be created automatically when the project starts."}
+            message={t("goals.empty")}
           />
         ) : (
           <div className="space-y-3">
@@ -74,7 +74,7 @@ export default function Goals() {
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function GoalCard({ goal }: { goal: Goal }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const progressPercent = Math.round(goal.progress * 100);
 
   return (
@@ -99,7 +99,7 @@ function GoalCard({ goal }: { goal: Goal }) {
       {/* Progress bar */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-          <span>{locale === "ko" ? "진행률" : "Progress"}</span>
+          <span>{t("goals.progress")}</span>
           <span>{progressPercent}%</span>
         </div>
         <div className="h-2 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
@@ -117,7 +117,7 @@ function GoalCard({ goal }: { goal: Goal }) {
       </div>
 
       <div className="text-xs text-[var(--text-muted)]">
-        {locale === "ko" ? "마지막 업데이트:" : "Last updated:"} {formatTimeAgo(goal.updatedAt)}
+        {t("goals.lastUpdated")} {formatTimeAgo(goal.updatedAt)}
       </div>
     </div>
   );
@@ -134,18 +134,18 @@ function GoalStatusIcon({ status }: { status: Goal["status"] }) {
 }
 
 function GoalStatusBadge({ status }: { status: Goal["status"] }) {
-  const { locale } = useLocale();
+  const { t } = useLocale();
   const config: Record<
     Goal["status"],
-    { ko: string; en: string; variant: "default" | "success" | "outline" }
+    { key: string; variant: "default" | "success" | "outline" }
   > = {
-    active: { ko: "진행 중", en: "Active", variant: "default" },
-    completed: { ko: "완료", en: "Completed", variant: "success" },
-    abandoned: { ko: "중단됨", en: "Abandoned", variant: "outline" },
+    active: { key: "goals.statusActive", variant: "default" },
+    completed: { key: "goals.statusCompleted", variant: "success" },
+    abandoned: { key: "goals.statusAbandoned", variant: "outline" },
   };
 
   const entry = config[status];
-  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : status;
+  const label = entry ? t(entry.key) : status;
   const variant = entry?.variant ?? "outline" as const;
   return <Badge variant={variant}>{label}</Badge>;
 }
