@@ -70,6 +70,14 @@ export const instanceSettings = pgTable("instance_settings", {
   ...timestamps,
 });
 
+// ===== user_preferences =====
+export const userPreferences = pgTable("user_preferences", {
+  userId: text("user_id").primaryKey(),
+  theme: text("theme").notNull().default("system"), // 'light' | 'dark' | 'system'
+  lastProjectId: text("last_project_id"),
+  ...timestamps,
+});
+
 // ===== instance_user_roles =====
 export const instanceUserRoles = pgTable(
   "instance_user_roles",

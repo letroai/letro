@@ -7,6 +7,10 @@ export const queryKeys = {
     session: ["auth", "session"] as const,
   },
 
+  userPreferences: {
+    all: ["userPreferences"] as const,
+  },
+
   projects: {
     all: ["projects"] as const,
     detail: (id: string) => ["projects", id] as const,
