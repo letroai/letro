@@ -4,9 +4,10 @@
 
 import { Hono } from "hono";
 import type { AppBindings, Actor } from "../env.js";
-import { eq, sql } from "drizzle-orm";
-import { projectGoals, goals } from "@letro/db/schema";
+import { eq, and, sql } from "drizzle-orm";
+import { projectGoals, goals, agents, issues } from "@letro/db/schema";
 import { getTaskOutput } from "../lib/task-output-store.js";
+import { publishLiveEvent } from "../ws/websocket-server.js";
 
 export const projectScopeRoutes = new Hono<AppBindings>();
 
@@ -224,4 +225,143 @@ projectScopeRoutes.get("/projects/:projectId/work-style", async (c) => {
 projectScopeRoutes.patch("/projects/:projectId/work-style", async (c) => {
   const body = await c.req.json() as Record<string, unknown>;
   return c.json({ style: body["style"] ?? "auto", updatedAt: new Date().toISOString() });
+});
+
+// POST /api/projects/:projectId/pause
+projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
+  const projectId = c.req.param("projectId");
+  const db = c.get("db");
+  const services = c.get("services");
+  const logger = c.get("logger");
+
+  const project = await services.project.getById(projectId);
+  if (!project) return c.json({ message: "Project not found" }, 404);
+
+  // 1. Pause all project agents (leader + members)
+  const projectAgents = await db
+    .select({ id: agents.id, name: agents.name, teamRole: agents.teamRole })
+    .from(agents)
+    .where(and(
+      eq(agents.projectId, projectId),
+      sql`${agents.status} NOT IN ('terminated')`,
+    ));
+
+  for (const agent of projectAgents) {
+    await db
+      .update(agents)
+      .set({ status: "paused", updatedAt: new Date() })
+      .where(eq(agents.id, agent.id));
+  }
+
+  // 2. Move in_progress tasks to todo, clear assignees
+  const inProgressTasks = await db
+    .select({ id: issues.id })
+    .from(issues)
+    .where(and(
+      eq(issues.projectId, projectId),
+      eq(issues.status, "in_progress"),
+    ));
+
+  for (const task of inProgressTasks) {
+    await db
+      .update(issues)
+      .set({
+        status: "todo",
+        assigneeAgentId: null,
+        checkedOutBy: null,
+        checkedOutAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(issues.id, task.id));
+  }
+
+  // 3. Mark project as paused via settings
+  await services.project.update(projectId, {
+    settings: { ...(project as Record<string, unknown>)["settings"] as object, paused: true },
+  });
+
+  logger.info({ projectId, agentsPaused: projectAgents.length, tasksReset: inProgressTasks.length }, "Project paused");
+
+  const companyId = getCompanyId(c);
+  if (companyId) {
+    publishLiveEvent(companyId, {
+      type: "project:updated",
+      projectId,
+      message: "프로젝트가 정지되었어요",
+    });
+  }
+
+  return c.json({
+    paused: true,
+    agentsPaused: projectAgents.length,
+    tasksReset: inProgressTasks.length,
+  });
+});
+
+// POST /api/projects/:projectId/resume
+projectScopeRoutes.post("/projects/:projectId/resume", async (c) => {
+  const projectId = c.req.param("projectId");
+  const db = c.get("db");
+  const services = c.get("services");
+  const logger = c.get("logger");
+
+  const project = await services.project.getById(projectId);
+  if (!project) return c.json({ message: "Project not found" }, 404);
+
+  // 1. Resume leader agent (set to idle so heartbeat loop can start)
+  const leaderAgentId = (project as Record<string, unknown>)["leaderAgentId"] as string;
+  if (leaderAgentId) {
+    await db
+      .update(agents)
+      .set({ status: "idle", updatedAt: new Date() })
+      .where(eq(agents.id, leaderAgentId));
+  }
+
+  // 2. Resume all member agents
+  const pausedMembers = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(and(
+      eq(agents.projectId, projectId),
+      eq(agents.teamRole, "member"),
+      eq(agents.status, "paused"),
+    ));
+
+  for (const member of pausedMembers) {
+    await db
+      .update(agents)
+      .set({ status: "idle", updatedAt: new Date() })
+      .where(eq(agents.id, member.id));
+  }
+
+  // 3. Mark project as active via settings
+  await services.project.update(projectId, {
+    settings: { ...(project as Record<string, unknown>)["settings"] as object, paused: false },
+  });
+
+  // 4. Trigger leader heartbeat to assess and assign
+  if (leaderAgentId) {
+    const heartbeatService = services.heartbeat;
+    setTimeout(() => {
+      heartbeatService.executeHeartbeat(leaderAgentId).catch((err: unknown) =>
+        logger.error({ err, agentId: leaderAgentId }, "Resume leader heartbeat failed"),
+      );
+    }, 1000);
+  }
+
+  logger.info({ projectId, membersResumed: pausedMembers.length }, "Project resumed");
+
+  const companyId = getCompanyId(c);
+  if (companyId) {
+    publishLiveEvent(companyId, {
+      type: "project:updated",
+      projectId,
+      message: "프로젝트가 재개되었어요",
+    });
+  }
+
+  return c.json({
+    paused: false,
+    membersResumed: pausedMembers.length,
+  });
 });

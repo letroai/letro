@@ -38,3 +38,11 @@ export function getProject(id: string): Promise<Project> {
 export function getTeam(projectId: string): Promise<TeamStructure> {
   return api.get<TeamStructure>(`/projects/${projectId}/team`);
 }
+
+export function pauseProject(projectId: string): Promise<{ paused: boolean; agentsPaused: number; tasksReset: number }> {
+  return api.post(`/projects/${projectId}/pause`);
+}
+
+export function resumeProject(projectId: string): Promise<{ paused: boolean; membersResumed: number }> {
+  return api.post(`/projects/${projectId}/resume`);
+}

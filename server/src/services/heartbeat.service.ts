@@ -58,8 +58,9 @@ export class HeartbeatService {
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
     }
-    if (agent.status === "terminated") {
-      throw new Error(`Agent is terminated: ${agentId}`);
+    if (agent.status === "terminated" || agent.status === "paused") {
+      this.logger.info({ agentId, status: agent.status }, "Agent is not active, skipping heartbeat");
+      return null;
     }
 
     // 2. Create heartbeat_run record

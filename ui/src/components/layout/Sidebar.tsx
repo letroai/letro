@@ -33,7 +33,7 @@ export function Sidebar() {
     { label: "결과물", icon: FolderOpen, path: `${basePath}/results` },
     { label: "비용", icon: BarChart3, path: `${basePath}/costs` },
     { label: "활동 기록", icon: ActivityIcon, path: `${basePath}/activity` },
-    { label: "설정", icon: Settings, path: `${basePath}/settings/style` },
+    { label: "설정", icon: Settings, path: `${basePath}/settings` },
   ];
 
   return (

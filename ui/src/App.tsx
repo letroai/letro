@@ -22,6 +22,7 @@ const Costs = lazy(() => import("@/pages/Costs"));
 const Activity = lazy(() => import("@/pages/Activity"));
 const OutputBrowser = lazy(() => import("@/pages/OutputBrowser"));
 const WorkStyle = lazy(() => import("@/pages/WorkStyle"));
+const ProjectSettings = lazy(() => import("@/pages/ProjectSettings"));
 const AccountSettings = lazy(() => import("@/pages/AccountSettings"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
@@ -55,6 +56,7 @@ export function App() {
                 <Route path="costs" element={<Costs />} />
                 <Route path="activity" element={<Activity />} />
                 <Route path="results/*" element={<OutputBrowser />} />
+                <Route path="settings" element={<ProjectSettings />} />
                 <Route path="settings/style" element={<WorkStyle />} />
                 <Route path="account" element={<AccountSettings />} />
                 <Route path="*" element={<NotFoundPage />} />
