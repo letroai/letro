@@ -33,3 +33,6 @@ export * from "./plugins.js";
 
 // Group J: Term Mapping
 export * from "./surface-terms.js";
+
+// Group K: Routines
+export * from "./routines.js";
