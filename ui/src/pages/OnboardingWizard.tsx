@@ -23,13 +23,34 @@ import {
   Check,
 } from "lucide-react";
 
-const IDEA_EXAMPLES = [
-  "우리 동네 맛집 추천 웹사이트 만들어줘",
-  "매일 운동 기록할 수 있는 앱 만들어줘",
-  "팀 회의록을 자동으로 정리해주는 도구",
-  "고객 문의를 자동으로 분류하고 답변해주는 시스템",
-  "인스타그램 같은 사진 공유 사이트",
-];
+const IDEA_EXAMPLES: Record<"ko" | "en", string[]> = {
+  ko: [
+    "우리 동네 맛집 추천 웹사이트 만들어줘",
+    "매일 운동 기록할 수 있는 앱 만들어줘",
+    "팀 회의록을 자동으로 정리해주는 도구",
+    "고객 문의를 자동으로 분류하고 답변해주는 시스템",
+  ],
+  en: [
+    "Build a local restaurant recommendation website",
+    "Create a daily workout tracking app",
+    "Make a tool that automatically organizes meeting notes",
+    "Build a customer support auto-classification system",
+  ],
+};
+
+const L: Record<string, Record<"ko" | "en", string>> = {
+  aiTools: { ko: "AI 도구", en: "AI Tools" },
+  inUse: { ko: "사용 중", en: "In Use" },
+  selected: { ko: "선택됨", en: "Selected" },
+  recommended: { ko: "추천", en: "Recommended" },
+  selectAI: { ko: "사용할 AI 도구를 선택하세요", en: "Select an AI tool to use" },
+  noAI: { ko: "AI 도구가 설치되어 있지 않아요", en: "No AI tools are installed" },
+  noAIDesc: { ko: "아이디어를 실현하려면 AI 도구가 필요합니다. 아래 중 하나를 설치해주세요.", en: "You need an AI tool to build your idea. Please install one below." },
+  refreshAfterInstall: { ko: "설치 후 이 페이지를 새로고침하세요", en: "Refresh this page after installation" },
+  copy: { ko: "복사", en: "Copy" },
+  tryThese: { ko: "이런 아이디어는 어때요?", en: "Try one of these ideas:" },
+  worksWithTool: { ko: (name: string) => `${name}로 작업합니다`, en: (name: string) => `Using ${name}` },
+} as Record<string, Record<"ko" | "en", unknown>>;
 
 type WizardStep = "input" | "analyzing" | "review";
 
@@ -165,7 +186,7 @@ export default function OnboardingWizard() {
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-[var(--text-muted)]" />
                 <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
-                  AI 도구
+                  {L.aiTools[locale] as string}
                 </span>
               </div>
 
@@ -192,12 +213,12 @@ export default function OnboardingWizard() {
                             {tool.name}
                             {isSelected && (
                               <span className="ml-2 text-xs text-primary-600 bg-primary-100 dark:bg-primary-500/20 px-1.5 py-0.5 rounded">
-                                {availableTools.length > 1 ? "선택됨" : "사용 중"}
+                                {availableTools.length > 1 ? L.selected[locale] as string : L.inUse[locale] as string}
                               </span>
                             )}
                             {!isSelected && aiTools?.recommended?.id === tool.id && (
                               <span className="ml-2 text-xs text-[var(--text-muted)] bg-[var(--bg-hover)] px-1.5 py-0.5 rounded">
-                                추천
+                                {L.recommended[locale] as string}
                               </span>
                             )}
                           </p>
@@ -210,7 +231,7 @@ export default function OnboardingWizard() {
                   })}
                   {availableTools.length > 1 && (
                     <p className="text-xs text-[var(--text-muted)] text-center">
-                      사용할 AI 도구를 선택하세요
+                      {L.selectAI[locale] as string}
                     </p>
                   )}
                 </div>
@@ -223,10 +244,10 @@ export default function OnboardingWizard() {
                     <AlertTriangle className="w-5 h-5 text-warning-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">
-                        AI 도구가 설치되어 있지 않아요
+                        {L.noAI[locale] as string}
                       </p>
                       <p className="text-xs text-[var(--text-secondary)] mt-1">
-                        아이디어를 실현하려면 AI 도구가 필요합니다. 아래 중 하나를 설치해주세요.
+                        {L.noAIDesc[locale] as string}
                       </p>
                     </div>
                   </div>
@@ -251,7 +272,7 @@ export default function OnboardingWizard() {
                           <button
                             onClick={() => handleCopyGuide(tool.setupGuide)}
                             className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] transition-colors"
-                            title="복사"
+                            title={L.copy[locale] as string}
                           >
                             {copiedGuide === tool.setupGuide ? (
                               <Check className="w-4 h-4 text-success-500" />
@@ -265,7 +286,7 @@ export default function OnboardingWizard() {
                   </div>
 
                   <p className="text-xs text-[var(--text-muted)] text-center">
-                    설치 후 이 페이지를 새로고침하세요
+                    {L.refreshAfterInstall[locale] as string}
                   </p>
                 </div>
               )}
@@ -277,17 +298,17 @@ export default function OnboardingWizard() {
                 <span className="text-xs font-medium text-[var(--text-muted)]">Language</span>
                 <div className="flex gap-1.5">
                   <button
-                    onClick={() => setLocale("ko")}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "ko" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                    }`}
-                  >🇰🇷 한국어</button>
-                  <button
                     onClick={() => setLocale("en")}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                       locale === "en" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >🇺🇸 English</button>
+                  <button
+                    onClick={() => setLocale("ko")}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "ko" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >🇰🇷 한국어</button>
                 </div>
               </div>
             )}
@@ -325,10 +346,10 @@ export default function OnboardingWizard() {
 
                 <div className="space-y-3">
                   <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
-                    이런 아이디어는 어때요?
+                    {L.tryThese[locale] as string}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {IDEA_EXAMPLES.map((example) => (
+                    {IDEA_EXAMPLES[locale].map((example) => (
                       <button
                         key={example}
                         onClick={() => handleExampleClick(example)}
@@ -362,7 +383,7 @@ export default function OnboardingWizard() {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-success-500" />
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                  분석 완료
+                  {locale === "ko" ? "분석 완료" : "Analysis Complete"}
                 </h2>
               </div>
 
@@ -376,13 +397,13 @@ export default function OnboardingWizard() {
                   <>
                     {goal?.title && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-[var(--text-muted)]">프로젝트 이름</p>
+                        <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "프로젝트 이름" : "Project Name"}</p>
                         <p className="text-base font-semibold text-[var(--text-primary)]">{goal.title}</p>
                       </div>
                     )}
                     {goal?.description && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-[var(--text-muted)]">목표 요약</p>
+                        <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "목표 요약" : "Goal Summary"}</p>
                         <p className="text-sm text-[var(--text-secondary)] whitespace-pre-line">{goal.description}</p>
                       </div>
                     )}
@@ -390,20 +411,20 @@ export default function OnboardingWizard() {
                       <div className="flex gap-4">
                         {estDays && (
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-[var(--text-muted)]">예상 기간</p>
-                            <p className="text-sm font-semibold text-[var(--text-primary)]">약 {estDays}일</p>
+                            <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "예상 기간" : "Est. Duration"}</p>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">{locale === "ko" ? `약 ${estDays}일` : `~${estDays} days`}</p>
                           </div>
                         )}
                         {estCost && (
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-[var(--text-muted)]">예상 비용</p>
+                            <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "예상 비용" : "Est. Cost"}</p>
                             <p className="text-sm font-semibold text-[var(--text-primary)]">약 ${estCost}</p>
                           </div>
                         )}
                         {teamComp?.members && (
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-[var(--text-muted)]">팀원</p>
-                            <p className="text-sm font-semibold text-[var(--text-primary)]">{teamComp.members.length}명</p>
+                            <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "팀원" : "Team"}</p>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">{teamComp.members.length}{locale === "ko" ? "명" : ""}</p>
                           </div>
                         )}
                       </div>
@@ -413,7 +434,7 @@ export default function OnboardingWizard() {
               })()}
 
               <div className="space-y-1">
-                <p className="text-xs font-medium text-[var(--text-muted)]">원래 아이디어</p>
+                <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "원래 아이디어" : "Original Idea"}</p>
                 <p className="text-sm text-[var(--text-secondary)] italic">
                   &ldquo;{idea.rawText}&rdquo;
                 </p>
@@ -421,18 +442,8 @@ export default function OnboardingWizard() {
 
               {/* Language selector */}
               <div className="space-y-1">
-                <p className="text-xs font-medium text-[var(--text-muted)]">프로젝트 언어</p>
+                <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "프로젝트 언어" : "Project Language"}</p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setLocale("ko")}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "ko"
-                        ? "bg-primary-500 text-white"
-                        : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                    }`}
-                  >
-                    🇰🇷 한국어
-                  </button>
                   <button
                     onClick={() => setLocale("en")}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -442,6 +453,16 @@ export default function OnboardingWizard() {
                     }`}
                   >
                     🇺🇸 English
+                  </button>
+                  <button
+                    onClick={() => setLocale("ko")}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "ko"
+                        ? "bg-primary-500 text-white"
+                        : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    🇰🇷 한국어
                   </button>
                 </div>
                 <p className="text-xs text-[var(--text-muted)]">
@@ -454,7 +475,7 @@ export default function OnboardingWizard() {
                 <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-default)]">
                   <Bot className="w-4 h-4 text-[var(--text-muted)]" />
                   <span className="text-xs text-[var(--text-muted)]">
-                    {activeTool.name} {activeTool.version}로 작업합니다
+                    {locale === "ko" ? `${activeTool.name} ${activeTool.version}로 작업합니다` : `Using ${activeTool.name} ${activeTool.version}`}
                   </span>
                 </div>
               )}
@@ -468,11 +489,11 @@ export default function OnboardingWizard() {
               {activateMutation.isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  프로젝트 만드는 중...
+                  {locale === "ko" ? "프로젝트 만드는 중..." : "Creating project..."}
                 </>
               ) : (
                 <>
-                  시작하기
+                  {locale === "ko" ? "시작하기" : "Start Project"}
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
