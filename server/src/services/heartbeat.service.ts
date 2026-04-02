@@ -14,6 +14,8 @@ import {
 import type { ServiceDependencies } from "./index.js";
 import type { WorkspaceService } from "./workspace.service.js";
 import type { SecretService } from "./secret.service.js";
+import type { AutonomyConfigService } from "./autonomy/autonomy-config.js";
+import type { ApprovalService } from "./approval.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
@@ -38,6 +40,8 @@ export class HeartbeatService {
   private config;
   private workspaceService?: WorkspaceService;
   private secretService?: SecretService;
+  private autonomyConfig?: AutonomyConfigService;
+  private approvalService?: ApprovalService;
 
   constructor(deps: ServiceDependencies) {
     this.db = deps.db;
@@ -51,6 +55,14 @@ export class HeartbeatService {
 
   setSecretService(ss: SecretService) {
     this.secretService = ss;
+  }
+
+  setAutonomyConfig(ac: AutonomyConfigService) {
+    this.autonomyConfig = ac;
+  }
+
+  setApprovalService(as_: ApprovalService) {
+    this.approvalService = as_;
   }
 
   /**
@@ -259,12 +271,26 @@ export class HeartbeatService {
       const maxPendingTasks = Math.max(memberCount + 1, 3);
 
       if (pendingTasks < maxPendingTasks) {
-        const maxNew = maxPendingTasks - pendingTasks;
-        this.logger.info(
-          { leaderId: agent.id, pendingTasks, maxPendingTasks, maxNew },
-          `Creating up to ${maxNew} new tasks (pending: ${pendingTasks}, max: ${maxPendingTasks})`,
-        );
-        await this.createTasksViaClaude(agent, project, goalData, goalLinks, ideaStructured, maxNew);
+        // Check autonomy: is task creation allowed?
+        const taskDecision = this.autonomyConfig
+          ? await this.autonomyConfig.canAutoApprove(agent.id, "task_creation")
+          : { allowed: true, requiresApproval: false, notifyUser: false };
+
+        if (taskDecision.requiresApproval && this.approvalService) {
+          await this.approvalService.create(agent.companyId, {
+            entityType: "task_creation",
+            entityId: project.id,
+            requestedByAgentId: agent.id,
+          });
+          this.logger.info({ leaderId: agent.id }, "Task creation requires approval, request created");
+        } else if (taskDecision.allowed) {
+          const maxNew = maxPendingTasks - pendingTasks;
+          this.logger.info(
+            { leaderId: agent.id, pendingTasks, maxPendingTasks, maxNew },
+            `Creating up to ${maxNew} new tasks (pending: ${pendingTasks}, max: ${maxPendingTasks})`,
+          );
+          await this.createTasksViaClaude(agent, project, goalData, goalLinks, ideaStructured, maxNew);
+        }
       } else {
         this.logger.info(
           { leaderId: agent.id, pendingTasks, maxPendingTasks },
@@ -278,9 +304,22 @@ export class HeartbeatService {
       );
     }
 
-    // ── Step 2: Hire team members based on idea's team_composition ──
+    // ── Step 2: Hire team members (with autonomy gate) ──
     try {
-      await this.hireTeamMembers(agent, project, ideaStructured);
+      const hireDecision = this.autonomyConfig
+        ? await this.autonomyConfig.canAutoApprove(agent.id, "hiring")
+        : { allowed: true, requiresApproval: false, notifyUser: false };
+
+      if (hireDecision.requiresApproval && this.approvalService) {
+        await this.approvalService.create(agent.companyId, {
+          entityType: "hiring",
+          entityId: project.id,
+          requestedByAgentId: agent.id,
+        });
+        this.logger.info({ leaderId: agent.id }, "Hiring requires approval, request created");
+      } else if (hireDecision.allowed) {
+          await this.hireTeamMembers(agent, project, ideaStructured);
+        }
     } catch (err) {
       this.logger.error(
         { leaderId: agent.id, err },
@@ -417,6 +456,15 @@ Create real files with working code. When done, provide a brief summary of what 
         });
       } catch (commentErr) {
         this.logger.error({ err: commentErr, taskId: task.id }, "Failed to save task result comment");
+      }
+
+      // Update goal progress based on completed tasks
+      if (task.projectId) {
+        try {
+          await this.updateGoalProgress(task.projectId);
+        } catch (err) {
+          this.logger.error({ err, projectId: task.projectId }, "Goal progress update failed");
+        }
       }
 
       this.logger.info(
@@ -1022,6 +1070,35 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
    * @param agentId - Agent ID to wake up
    * @param context - Wakeup context (source, issueId, etc.)
    */
+
+  /** Updates goal progress based on completed tasks ratio. */
+  private async updateGoalProgress(projectId: string) {
+    const projectIssues = await this.db
+      .select({ status: issues.status })
+      .from(issues)
+      .where(eq(issues.projectId, projectId));
+
+    if (projectIssues.length === 0) return;
+
+    const doneCount = projectIssues.filter((i) => i.status === "done").length;
+    const progress = Math.round((doneCount / projectIssues.length) * 100);
+
+    // Update linked goals
+    const goalLinks = await this.db
+      .select({ goalId: projectGoals.goalId })
+      .from(projectGoals)
+      .where(eq(projectGoals.projectId, projectId));
+
+    for (const link of goalLinks) {
+      await this.db
+        .update(goals)
+        .set({ progressPercent: progress, updatedAt: new Date() })
+        .where(eq(goals.id, link.goalId));
+    }
+
+    this.logger.debug({ projectId, progress, total: projectIssues.length, done: doneCount }, "Goal progress updated");
+  }
+
   async wakeup(
     agentId: string,
     context?: { source?: string; issueId?: string },

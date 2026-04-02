@@ -67,8 +67,12 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
   const dashboard = new DashboardService(deps, cost.getWindowSpend.bind(cost), budget);
   const secret = new SecretService(deps);
   const heartbeat = new HeartbeatService(deps);
+  const autonomyConfig = new AutonomyConfigService(deps);
+  const approval = new ApprovalService(deps);
   heartbeat.setWorkspaceService(workspace);
   heartbeat.setSecretService(secret);
+  heartbeat.setAutonomyConfig(autonomyConfig);
+  heartbeat.setApprovalService(approval);
 
   return {
     idea: new IdeaService(deps),
@@ -86,7 +90,7 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     hiringEngine: new HiringEngine(deps),
     firingEngine: new FiringEngine(deps),
     autoRestartEngine: new AutoRestartEngine(deps),
-    autonomyConfig: new AutonomyConfigService(deps),
+    autonomyConfig,
     cost,
     budget,
     costAnomalyDetector: new CostAnomalyDetector(deps),
@@ -94,6 +98,6 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     dashboard,
     workspace,
     secret,
-    approval: new ApprovalService(deps),
+    approval,
   };
 }
