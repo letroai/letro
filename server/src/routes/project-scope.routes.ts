@@ -63,8 +63,31 @@ projectScopeRoutes.get("/projects/:projectId/tasks/:taskId", async (c) => {
 // GET /api/projects/:projectId/tasks/:taskId/comments
 projectScopeRoutes.get("/projects/:projectId/tasks/:taskId/comments", async (c) => {
   const services = c.get("services");
-  const comments = await services.issue.listComments(c.req.param("taskId"));
-  return c.json(comments);
+  const rawComments = await services.issue.listComments(c.req.param("taskId"));
+
+  // Map DB fields to UI-expected format
+  const mapped = await Promise.all(rawComments.map(async (cm) => {
+    let authorName = "시스템";
+    let authorType: "human" | "agent" = "agent";
+    if (cm.createdByAgentId) {
+      const agent = await services.agent.getById(cm.createdByAgentId);
+      authorName = (agent as Record<string, unknown> | null)?.name as string ?? "팀원";
+    } else if (cm.createdByUserId) {
+      authorName = "나";
+      authorType = "human";
+    }
+    return {
+      id: cm.id,
+      taskId: cm.issueId,
+      authorId: cm.createdByAgentId ?? cm.createdByUserId ?? "",
+      authorName,
+      authorType,
+      content: cm.body ?? "",
+      createdAt: cm.createdAt?.toISOString?.() ?? cm.createdAt,
+    };
+  }));
+
+  return c.json(mapped);
 });
 
 // POST /api/projects/:projectId/tasks/:taskId/comments
