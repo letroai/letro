@@ -27,6 +27,7 @@ import { WorkspaceService } from "./workspace.service.js";
 import { SecretService } from "./secret.service.js";
 import { ApprovalService } from "./approval.service.js";
 import { RoutineService } from "./routine.service.js";
+import { NotificationService } from "./notification.service.js";
 
 export interface ServiceContainer {
   idea: IdeaService;
@@ -54,6 +55,7 @@ export interface ServiceContainer {
   secret: SecretService;
   approval: ApprovalService;
   routine: RoutineService;
+  notification: NotificationService;
 }
 
 export interface ServiceDependencies {
@@ -102,5 +104,6 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     secret,
     approval,
     routine: new RoutineService(deps),
+    notification: new NotificationService(deps),
   };
 }
