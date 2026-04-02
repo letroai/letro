@@ -498,50 +498,63 @@ After creating all files:
         .set(omitUndefined({ status: "idle", updatedAt: now }))
         .where(eq(agents.id, agent.id));
 
-      // Git commit in workspace + save commit message as comment
+      // Git commit in workspace + AI-generated commit message as comment
       try {
         const { execFile: execFileCb } = await import("node:child_process");
         const { promisify: promisifyFn } = await import("node:util");
         const execFileAsync = promisifyFn(execFileCb);
         const gitEnv = { ...process.env, GIT_AUTHOR_NAME: agent.name, GIT_AUTHOR_EMAIL: "agent@letro.local", GIT_COMMITTER_NAME: agent.name, GIT_COMMITTER_EMAIL: "agent@letro.local" };
 
-        const commitMsg = `${task.title}\n\n${summary.slice(0, 500)}`;
-
         await execFileAsync("git", ["add", "-A"], { cwd: workspace.path });
-
-        // Check if there are changes to commit
         const { stdout: statusOut } = await execFileAsync("git", ["status", "--porcelain"], { cwd: workspace.path });
 
         if (statusOut.trim()) {
-          await execFileAsync("git", ["commit", "-m", commitMsg], { cwd: workspace.path, env: gitEnv });
+          // Get diff summary for AI to write commit message
+          const { stdout: diffStat } = await execFileAsync("git", ["diff", "--cached", "--stat"], { cwd: workspace.path });
+          const { stdout: diffContent } = await execFileAsync("git", ["diff", "--cached", "--no-color"], { cwd: workspace.path, maxBuffer: 50 * 1024 });
 
+          // Ask AI to write a proper commit message
+          const commitMsgResponse = await callLLM({
+            system: "You are a developer writing a git commit message. Write a concise, descriptive commit message in Korean. First line: summary (max 72 chars). Then blank line + bullet points of what changed. No co-authored-by. No markdown formatting.",
+            prompt: `태스크: ${task.title}
+
+변경된 파일:
+${diffStat.slice(0, 500)}
+
+변경 내용 (일부):
+${diffContent.slice(0, 1500)}
+
+위 변경사항을 요약하는 git 커밋 메시지를 작성하세요.`,
+          });
+
+          const commitMsg = commitMsgResponse.content.slice(0, 1000);
+
+          await execFileAsync("git", ["commit", "-m", commitMsg], { cwd: workspace.path, env: gitEnv });
           const { stdout: commitHash } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: workspace.path });
 
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `📦 커밋 ${commitHash.trim()}: ${summary.slice(0, 500)}`,
+            body: `📦 ${commitHash.trim()} ${commitMsg.split("\n")[0]!}`,
             createdByAgentId: agent.id,
           });
 
           this.logger.info({ taskId: task.id, commit: commitHash.trim() }, "Task committed to workspace git");
         } else {
-          // No file changes, just save summary
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `✅ ${summary.slice(0, 500)}`,
+            body: `✅ 파일 변경 없음`,
             createdByAgentId: agent.id,
           });
         }
-      } catch (commentErr) {
-        this.logger.error({ err: commentErr, taskId: task.id }, "Failed to commit/comment task result");
-        // Fallback: save summary without git
+      } catch (commitErr) {
+        this.logger.error({ err: commitErr, taskId: task.id }, "Failed to commit task result");
         try {
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `✅ ${summary.slice(0, 500)}`,
+            body: `✅ 작업 완료`,
             createdByAgentId: agent.id,
           });
         } catch { /* ignore */ }
