@@ -22,11 +22,18 @@ export interface FileContent {
 
 const SKIP_DIRS = new Set([
   ".git", "node_modules", ".claude", "__pycache__", ".next",
-  ".turbo", "dist", ".embedded-pg", ".venv", ".env",
+  ".turbo", "dist", ".embedded-pg", ".venv",
 ]);
 
 const MAX_TREE_DEPTH = 6;
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const BINARY_EXTS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp",
+  ".woff", ".woff2", ".ttf", ".eot",
+  ".zip", ".tar", ".gz", ".7z", ".rar",
+  ".exe", ".dll", ".so", ".dylib",
+  ".pdf", ".mp3", ".mp4", ".wav",
+]);
 
 const EXT_LANG: Record<string, string> = {
   ".ts": "typescript", ".tsx": "typescript", ".js": "javascript", ".jsx": "javascript",
@@ -110,9 +117,7 @@ export class WorkspaceService {
       };
     }
 
-    // Skip binary files
-    const binaryExts = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib"]);
-    if (binaryExts.has(ext)) {
+    if (BINARY_EXTS.has(ext)) {
       return { path: filePath, content: "(바이너리 파일)", language: "binary", size: stats.size };
     }
 

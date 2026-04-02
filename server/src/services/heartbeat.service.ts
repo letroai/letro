@@ -369,25 +369,12 @@ Create real files with working code. When done, provide a brief summary of what 
         });
       };
 
-      let summary: string;
-
-      if (workspace) {
-        // Execute in workspace with full file creation capabilities
-        const response = await callLLMStreaming({
-          system: systemPrompt,
-          prompt: taskPrompt,
-        }, onChunk, { cwd: workspace.path });
-
-        summary = response.content.slice(0, 2000);
-      } else {
-        // Fallback: LLM-only mode (no workspace)
-        const response = await callLLMStreaming({
-          system: systemPrompt,
-          prompt: taskPrompt,
-        }, onChunk);
-
-        summary = response.content.slice(0, 2000);
-      }
+      const response = await callLLMStreaming(
+        { system: systemPrompt, prompt: taskPrompt },
+        onChunk,
+        workspace ? { cwd: workspace.path } : undefined,
+      );
+      const summary = response.content.slice(0, 2000);
 
       // 4. Mark task done
       const now = new Date();
