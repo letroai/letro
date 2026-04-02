@@ -18,6 +18,7 @@ import { aiToolsRoutes } from "./ai-tools.routes.js";
 import { projectScopeRoutes } from "./project-scope.routes.js";
 import { userPreferencesRoutes } from "./user-preferences.routes.js";
 import { secretRoutes } from "./secret.routes.js";
+import { approvalRoutes } from "./approval.routes.js";
 
 export function registerRoutes(app: Hono<AppBindings>) {
   app.route("/api", authRoutes);
@@ -37,6 +38,7 @@ export function registerRoutes(app: Hono<AppBindings>) {
   app.route("/api", dashboardRoutes);
   app.route("/api", userPreferencesRoutes);
   app.route("/api", secretRoutes);
+  app.route("/api", approvalRoutes);
 
   // Stub routes: not yet implemented but called by the frontend
   app.get("/api/notifications", (c) => c.json([]));
