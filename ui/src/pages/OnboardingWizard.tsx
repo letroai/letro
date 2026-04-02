@@ -418,7 +418,7 @@ export default function OnboardingWizard() {
                         {estCost && (
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-[var(--text-muted)]">{locale === "ko" ? "예상 비용" : "Est. Cost"}</p>
-                            <p className="text-sm font-semibold text-[var(--text-primary)]">약 ${estCost}</p>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">{locale === "ko" ? `약 $${estCost}` : `~$${estCost}`}</p>
                           </div>
                         )}
                         {teamComp?.members && (
