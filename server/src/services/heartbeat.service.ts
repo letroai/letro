@@ -5,6 +5,7 @@ import {
   heartbeatRuns,
   agentWakeupRequests,
   issues,
+  issueComments,
   projects,
   projectGoals,
   goals,
@@ -388,6 +389,18 @@ Respond with a JSON object:
           .update(agents)
           .set(omitUndefined({ status: "idle", updatedAt: now }))
           .where(eq(agents.id, agent.id));
+
+        // Save completion result as a comment on the task
+        try {
+          await this.db.insert(issueComments).values({
+            companyId: agent.companyId,
+            issueId: task.id,
+            body: result.summary,
+            createdByAgentId: agent.id,
+          });
+        } catch (commentErr) {
+          this.logger.error({ err: commentErr, taskId: task.id }, "Failed to save task result comment");
+        }
 
         this.logger.info(
           {
