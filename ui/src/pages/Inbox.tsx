@@ -35,7 +35,6 @@ export default function Inbox() {
   } = useQuery<Notification[]>({
     queryKey: queryKeys.notifications.list,
     queryFn: listNotifications,
-    refetchInterval: 5000,
   });
 
   const markReadMutation = useMutation({

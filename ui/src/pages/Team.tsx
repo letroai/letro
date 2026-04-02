@@ -29,7 +29,6 @@ export default function Team() {
     queryKey: queryKeys.projects.team(projectId!),
     queryFn: () => getTeam(projectId!),
     enabled: !!projectId,
-    refetchInterval: 5000,
   });
 
   if (isLoading) {

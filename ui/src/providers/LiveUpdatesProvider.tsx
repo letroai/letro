@@ -16,7 +16,16 @@ const LiveUpdatesContext = createContext<LiveUpdatesContextValue>({
  * Maps WebSocket event types to TanStack Query key prefixes to invalidate.
  * Uses prefixes instead of exact keys to batch-invalidate related queries.
  */
+/**
+ * Maps WebSocket event types to TanStack Query key prefixes to invalidate.
+ *
+ * "activity" is the main event type from heartbeat (task start/complete, hire, assign).
+ * It invalidates all key data since any agent action can affect multiple views.
+ */
 const EVENT_INVALIDATION_MAP: Record<string, string[][]> = {
+  // Main heartbeat activity events — refresh everything relevant
+  "activity": [["team"], ["tasks"], ["dashboard"], ["goals"], ["activity"], ["notifications"]],
+  // Granular events (from future or direct API calls)
   "agent:created": [["team"], ["projects"]],
   "agent:updated": [["team"]],
   "agent:hired": [["team"], ["dashboard"]],
@@ -25,19 +34,19 @@ const EVENT_INVALIDATION_MAP: Record<string, string[][]> = {
   "issue:created": [["tasks"], ["dashboard"]],
   "issue:updated": [["tasks"]],
   "issue:status_changed": [["tasks"], ["dashboard"]],
-  "issue:assigned": [["tasks"]],
+  "issue:assigned": [["tasks"], ["team"]],
   "goal:created": [["goals"]],
   "goal:updated": [["goals"]],
   "goal:progress_changed": [["goals"], ["dashboard"]],
   "project:created": [["projects"]],
-  "project:updated": [["projects"]],
-  "heartbeat:completed": [["dashboard"], ["activity"]],
+  "project:updated": [["projects"], ["dashboard"]],
+  "heartbeat:completed": [["dashboard"], ["activity"], ["team"], ["tasks"]],
   "cost:event": [["costs"], ["dashboard"]],
   "budget:warning": [["dashboard"]],
   "budget:exceeded": [["dashboard"]],
   "peer_review:completed": [["tasks"]],
   "approval:requested": [["dashboard"], ["notifications"]],
-  "approval:resolved": [["dashboard"]],
+  "approval:resolved": [["dashboard"], ["notifications"]],
 };
 
 export function LiveUpdatesProvider({ children }: { children: React.ReactNode }) {

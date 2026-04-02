@@ -35,7 +35,6 @@ export default function Activity() {
     queryKey: queryKeys.activity.list(projectId!),
     queryFn: () => listActivity(projectId!, { limit: 50 }),
     enabled: !!projectId,
-    refetchInterval: 5000,
   });
 
   if (isLoading) {

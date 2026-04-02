@@ -30,7 +30,6 @@ export default function Dashboard() {
     queryKey: queryKeys.dashboard.data(projectId!),
     queryFn: () => getDashboard(projectId!),
     enabled: !!projectId,
-    refetchInterval: 5000,
   });
 
   if (isLoading) {

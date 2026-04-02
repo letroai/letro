@@ -44,7 +44,6 @@ export default function TaskDetail() {
     queryKey: queryKeys.tasks.detail(projectId!, taskId!),
     queryFn: () => getTask(projectId!, taskId!),
     enabled: !!projectId && !!taskId,
-    refetchInterval: 5000,
   });
 
   const {

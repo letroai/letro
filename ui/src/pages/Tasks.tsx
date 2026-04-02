@@ -35,7 +35,6 @@ export default function Tasks() {
     queryKey: queryKeys.tasks.list(projectId!),
     queryFn: () => listTasks(projectId!),
     enabled: !!projectId,
-    refetchInterval: 5000,
   });
 
   if (isLoading) {
