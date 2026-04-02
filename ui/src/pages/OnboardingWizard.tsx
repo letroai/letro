@@ -8,7 +8,7 @@ import {
   type Idea,
 } from "@/api/ideas";
 import { getAITools, type AIToolsStatus } from "@/api/aiTools";
-import { translate } from "@/lib/i18n/index";
+import { useLocale } from "@/providers/LocaleProvider";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { SimpleErrorMessage } from "@/components/shared/SimpleErrorMessage";
 import {
@@ -39,17 +39,15 @@ const IDEA_EXAMPLES: Record<"ko" | "en", string[]> = {
   ],
 };
 
-// Removed L object — using t() from i18n system
-
 type WizardStep = "input" | "analyzing" | "review";
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
+  const { locale, t } = useLocale();
   const [rawInput, setRawInput] = useState("");
   const [step, setStep] = useState<WizardStep>("input");
   const [ideaId, setIdeaId] = useState<string | null>(null);
-  const [locale, setLocale] = useState<"ko" | "en">("en");
-  const t = (key: string, params?: Record<string, string | number>) => translate(key, locale, params);
+  const [projectLocale, setProjectLocale] = useState<"ko" | "en">("en");
   const [copiedGuide, setCopiedGuide] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
 
@@ -80,7 +78,7 @@ export default function OnboardingWizard() {
   });
 
   const activateMutation = useMutation({
-    mutationFn: (id: string) => activateIdea(id, { confirmed: true, locale }),
+    mutationFn: (id: string) => activateIdea(id, { confirmed: true, locale: projectLocale }),
     onSuccess: (result) => {
       navigate(`/p/${result.projectId}/home`);
     },
@@ -89,10 +87,9 @@ export default function OnboardingWizard() {
   // Transition to review when idea is analyzed
   useEffect(() => {
     if (step === "analyzing" && idea && (idea.status === "analyzed" || idea.status === "structured")) {
-      // Detect locale from idea structured data
       const detectedLocale = (idea.structured as Record<string, unknown> | null)?.locale as string;
       if (detectedLocale === "ko" || detectedLocale === "en") {
-        setLocale(detectedLocale);
+        setProjectLocale(detectedLocale);
       }
       setStep("review");
     }
@@ -100,8 +97,8 @@ export default function OnboardingWizard() {
 
   const handleSubmit = useCallback(() => {
     if (!rawInput.trim()) return;
-    createMutation.mutate({ raw_text: rawInput.trim(), locale });
-  }, [rawInput, locale, createMutation]);
+    createMutation.mutate({ raw_text: rawInput.trim(), locale: projectLocale });
+  }, [rawInput, projectLocale, createMutation]);
 
   const handleExampleClick = useCallback((example: string) => {
     setRawInput(example);
@@ -124,7 +121,7 @@ export default function OnboardingWizard() {
     return (
       <div className="flex min-h-dvh items-center justify-center p-4">
         <SimpleErrorMessage
-          message="아이디어 분석에 실패했어요"
+          message={t("onboarding.ideaAnalysisFailed")}
           onRetry={() => createMutation.reset()}
         />
       </div>
@@ -135,7 +132,7 @@ export default function OnboardingWizard() {
     return (
       <div className="flex min-h-dvh items-center justify-center p-4">
         <SimpleErrorMessage
-          message="프로젝트 생성에 실패했어요"
+          message={t("onboarding.projectCreationFailed")}
           onRetry={() => activateMutation.reset()}
         />
       </div>
@@ -143,11 +140,11 @@ export default function OnboardingWizard() {
   }
 
   const isReady = aiTools?.ready ?? false;
-  const availableTools = aiTools?.tools.filter((t) => t.installed) ?? [];
-  const unavailableTools = aiTools?.tools.filter((t) => !t.installed) ?? [];
+  const availableTools = aiTools?.tools.filter((tool) => tool.installed) ?? [];
+  const unavailableTools = aiTools?.tools.filter((tool) => !tool.installed) ?? [];
 
   // Determine active tool: user selection > recommended > first available
-  const activeTool = availableTools.find((t) => t.id === selectedToolId)
+  const activeTool = availableTools.find((tool) => tool.id === selectedToolId)
     ?? aiTools?.recommended
     ?? availableTools[0]
     ?? null;
@@ -288,22 +285,22 @@ export default function OnboardingWizard() {
                 <span className="text-xs font-medium text-[var(--text-muted)]">Language</span>
                 <div className="flex gap-1.5">
                   <button
-                    onClick={() => setLocale("en")}
+                    onClick={() => setProjectLocale("en")}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "en" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                      projectLocale === "en" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >🇺🇸 English</button>
                   <button
-                    onClick={() => setLocale("ko")}
+                    onClick={() => setProjectLocale("ko")}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "ko" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                      projectLocale === "ko" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >🇰🇷 한국어</button>
                 </div>
               </div>
             )}
 
-            {/* Idea input — only enabled when AI tools are available */}
+            {/* Idea input -- only enabled when AI tools are available */}
             {isReady && (
               <>
                 <div className="space-y-3">
@@ -359,10 +356,10 @@ export default function OnboardingWizard() {
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin" />
             <p className="text-base font-medium text-[var(--text-primary)]">
-              {activeTool?.name ?? "AI"}가 아이디어를 분석하고 있어요...
+              {t("onboarding.analyzingWithTool", { name: activeTool?.name ?? "AI" })}
             </p>
             <p className="text-sm text-[var(--text-secondary)]">
-              잠시만 기다려 주세요. 보통 10~20초면 끝나요.
+              {t("onboarding.analyzingDesc")}
             </p>
           </div>
         )}
@@ -435,9 +432,9 @@ export default function OnboardingWizard() {
                 <p className="text-xs font-medium text-[var(--text-muted)]">{t("onboarding.projectLanguage")}</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setLocale("en")}
+                    onClick={() => setProjectLocale("en")}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "en"
+                      projectLocale === "en"
                         ? "bg-primary-500 text-white"
                         : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                     }`}
@@ -445,9 +442,9 @@ export default function OnboardingWizard() {
                     🇺🇸 English
                   </button>
                   <button
-                    onClick={() => setLocale("ko")}
+                    onClick={() => setProjectLocale("ko")}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      locale === "ko"
+                      projectLocale === "ko"
                         ? "bg-primary-500 text-white"
                         : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                     }`}
@@ -456,7 +453,7 @@ export default function OnboardingWizard() {
                   </button>
                 </div>
                 <p className="text-xs text-[var(--text-muted)]">
-                  {t(`onboarding.langDesc.${locale}`)}
+                  {t(`onboarding.langDesc.${projectLocale}`)}
                 </p>
               </div>
 
