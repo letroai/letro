@@ -19,26 +19,26 @@ function formatToolLabel(toolName: string, inputJson: string): string {
       case "Write": {
         const p = input.file_path ?? "";
         const name = p.split("/").pop() ?? p;
-        return `\n📝 파일 생성: ${name}\n`;
+        return `\n📝 ${name}\n`;
       }
       case "Edit": {
         const p = input.file_path ?? "";
         const name = p.split("/").pop() ?? p;
-        return `\n✏️ 파일 수정: ${name}\n`;
+        return `\n✏️ ${name}\n`;
       }
       case "Bash": {
         const cmd = String(input.command ?? "").slice(0, 60);
-        return `\n💻 실행: ${cmd}\n`;
+        return `\n💻 ${cmd}\n`;
       }
       case "Read": {
         const p = input.file_path ?? "";
         const name = p.split("/").pop() ?? p;
-        return `\n📖 파일 읽기: ${name}\n`;
+        return `\n📖 ${name}\n`;
       }
       case "Glob":
-        return `\n🔍 파일 검색: ${input.pattern ?? ""}\n`;
+        return `\n🔍 ${input.pattern ?? ""}\n`;
       case "Grep":
-        return `\n🔍 코드 검색: ${input.pattern ?? ""}\n`;
+        return `\n🔍 ${input.pattern ?? ""}\n`;
       default:
         return "";
     }
@@ -184,9 +184,9 @@ export function callLLMStreaming(
             const r = obj.tool_use_result;
             let label = "";
             if (r.type === "create" && r.filePath) {
-              label = `  ✅ 완료\n`;
+              label = `  ✅\n`;
             } else if (r.type === "update" && r.filePath) {
-              label = `  ✅ 완료\n`;
+              label = `  ✅\n`;
             }
             if (label) {
               fullText += label;
