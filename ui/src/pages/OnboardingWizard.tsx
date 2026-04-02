@@ -38,7 +38,7 @@ export default function OnboardingWizard() {
   const [rawInput, setRawInput] = useState("");
   const [step, setStep] = useState<WizardStep>("input");
   const [ideaId, setIdeaId] = useState<string | null>(null);
-  const [locale, setLocale] = useState<"ko" | "en">("ko");
+  const [locale, setLocale] = useState<"ko" | "en">("en");
   const [copiedGuide, setCopiedGuide] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
 

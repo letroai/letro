@@ -19,7 +19,7 @@ const LocaleContext = createContext<LocaleContextValue>({
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [locale, setLocaleState] = useState<Locale>("ko");
+  const [locale, setLocaleState] = useState<Locale>("en");
 
   const { data: prefs } = useQuery({
     queryKey: queryKeys.userPreferences.all,

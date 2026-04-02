@@ -75,7 +75,7 @@ export const userPreferences = pgTable("user_preferences", {
   userId: text("user_id").primaryKey(),
   theme: text("theme").notNull().default("system"), // 'light' | 'dark' | 'system'
   lastProjectId: text("last_project_id"),
-  locale: text("locale").notNull().default("ko"), // 'ko' | 'en'
+  locale: text("locale").notNull().default("en"), // 'ko' | 'en'
   ...timestamps,
 });
 
