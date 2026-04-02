@@ -12,7 +12,7 @@ import { FolderKanban, Plus, ArrowRight } from "lucide-react";
 
 export default function ProjectList() {
   const navigate = useNavigate();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: projects,
@@ -93,7 +93,7 @@ function ProjectCard({
   project: Project;
   onClick: () => void;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   return (
     <button
@@ -130,9 +130,9 @@ function ProjectCard({
           </div>
 
           <div className="flex items-center gap-3 pt-1 text-xs text-[var(--text-muted)]">
-            <span>{t("projectList.cost")} {formatCost(project.totalCost)}</span>
+            <span>{t("projectList.cost")} {formatCost(project.totalCost, locale)}</span>
             <span>&middot;</span>
-            <span>{formatTimeAgo(project.updatedAt)}</span>
+            <span>{formatTimeAgo(project.updatedAt, locale)}</span>
           </div>
         </div>
 

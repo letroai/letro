@@ -107,6 +107,17 @@ export default {
   "team.noMembers": "아직 팀원이 없어요. 프로젝트가 시작되면 자동으로 팀이 구성돼요.",
   "team.memberDetail": "팀원",
   "team.memberFailedLoad": "팀원 정보를 불러올 수 없어요.",
+  "team.lastActivity": "마지막 작업 시간:",
+  "team.totalCost": "누적 비용:",
+  "team.joinedAt": "합류일:",
+  "team.inProgressCount": "진행 중",
+  "team.completedCount": "완료",
+  "team.taskStatus": "작업 현황",
+  "team.noTasks": "배정된 작업이 없어요.",
+  "team.statusActive": "활동 중",
+  "team.statusPaused": "일시 정지",
+  "team.statusIdle": "대기 중",
+  "team.statusError": "문제 발생",
 
   // Tasks
   "tasks.title": "작업 목록",
@@ -157,6 +168,9 @@ export default {
   "costs.events": "이벤트",
   "costs.totalTokens": "총 {n} 토큰 사용",
   "costs.totalEvents": "{n}건 처리",
+  "costs.monthlyCost": "이번 달 비용",
+  "costs.budgetUsage": "비용 한도 {limit} 중 {pct}% 사용",
+  "costs.teamBreakdown": "팀원별 비용",
 
   // Inbox
   "inbox.title": "알림",

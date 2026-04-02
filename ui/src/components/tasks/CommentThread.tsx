@@ -3,6 +3,7 @@ import { Send } from "lucide-react";
 import { Identity } from "@/components/shared/Identity";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface Comment {
   id: string;
@@ -25,6 +26,7 @@ export function CommentThread({
   disabled = false,
   className,
 }: CommentThreadProps) {
+  const { locale } = useLocale();
   const listRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState("");
 
@@ -82,7 +84,7 @@ export function CommentThread({
                   {comment.author}
                 </span>
                 <span className="text-xs text-[var(--text-muted)]">
-                  {formatTimeAgo(comment.createdAt)}
+                  {formatTimeAgo(comment.createdAt, locale)}
                 </span>
               </div>
               <p className="text-sm text-[var(--text-secondary)] mt-0.5 whitespace-pre-wrap break-words">

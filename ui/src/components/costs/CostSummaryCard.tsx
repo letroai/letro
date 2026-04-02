@@ -1,6 +1,7 @@
 import { DollarSign } from "lucide-react";
 import { formatCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface CostSummaryCardProps {
   currentCents: number;
@@ -13,6 +14,7 @@ export function CostSummaryCard({
   limitCents,
   className,
 }: CostSummaryCardProps) {
+  const { locale, t } = useLocale();
   const pct = limitCents && limitCents > 0
     ? Math.round((currentCents / limitCents) * 100)
     : 0;
@@ -29,7 +31,7 @@ export function CostSummaryCard({
       <div className="flex items-center gap-2">
         <DollarSign className="w-4 h-4 text-[var(--text-muted)]" />
         <span className="text-sm text-[var(--text-secondary)]">
-          이번 달 비용
+          {t("costs.monthlyCost")}
         </span>
       </div>
 
@@ -41,7 +43,7 @@ export function CostSummaryCard({
             : "text-[var(--text-primary)]",
         )}
       >
-        {formatCost(currentCents)}
+        {formatCost(currentCents, locale)}
       </span>
 
       {limitCents != null && limitCents > 0 && (
@@ -60,7 +62,7 @@ export function CostSummaryCard({
             />
           </div>
           <span className="text-xs text-[var(--text-muted)]">
-            비용 한도 {formatCost(limitCents)} 중 {pct}% 사용
+            {t("costs.budgetUsage", { limit: formatCost(limitCents, locale), pct })}
           </span>
         </div>
       )}

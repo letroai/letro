@@ -18,7 +18,7 @@ type FilterValue = "all" | "in_progress" | "waiting" | "done";
 export default function Tasks() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [filter, setFilter] = useState<FilterValue>("all");
 
   const {
@@ -212,7 +212,7 @@ function priorityLabel(priority: Task["priority"], t: (key: string) => string): 
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   return (
     <button
       onClick={onClick}
@@ -237,7 +237,7 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
             </span>
           )}
           {task.assigneeName && <span>&middot;</span>}
-          <span>{formatTimeAgo(task.updatedAt)}</span>
+          <span>{formatTimeAgo(task.updatedAt, locale)}</span>
         </div>
       </div>
       <ChevronRight className="w-4 h-4 text-[var(--text-muted)] shrink-0 ml-2" />

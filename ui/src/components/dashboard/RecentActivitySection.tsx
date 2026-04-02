@@ -1,5 +1,6 @@
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface ActivityItem {
   id: string;
@@ -18,6 +19,7 @@ export function RecentActivitySection({
   maxItems = 10,
   className,
 }: RecentActivitySectionProps) {
+  const { locale } = useLocale();
   const visible = items.slice(0, maxItems);
 
   if (visible.length === 0) return null;
@@ -38,7 +40,7 @@ export function RecentActivitySection({
               {item.text}
             </span>
             <span className="text-xs text-[var(--text-muted)] shrink-0 pt-0.5">
-              {formatTimeAgo(item.createdAt)}
+              {formatTimeAgo(item.createdAt, locale)}
             </span>
           </li>
         ))}

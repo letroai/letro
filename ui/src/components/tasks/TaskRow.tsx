@@ -2,6 +2,7 @@ import { Circle, CheckCircle2, Loader2, PauseCircle, AlertCircle } from "lucide-
 import { Identity } from "@/components/shared/Identity";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 type TaskStatus = "todo" | "in_progress" | "done" | "paused" | "error";
 type Priority = "high" | "medium" | "low";
@@ -47,6 +48,7 @@ export function TaskRow({
   onClick,
   className,
 }: TaskRowProps) {
+  const { locale } = useLocale();
   const StatusIcon = statusIcons[status];
 
   return (
@@ -67,7 +69,7 @@ export function TaskRow({
         <Identity name={assigneeName} type="agent" size="sm" />
       )}
       <span className="text-xs text-[var(--text-muted)] shrink-0">
-        {formatTimeAgo(updatedAt)}
+        {formatTimeAgo(updatedAt, locale)}
       </span>
     </div>
   );

@@ -1,6 +1,7 @@
 import { AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface HelpRequestCardProps {
   title: string;
@@ -41,6 +42,7 @@ export function HelpRequestCard({
   onAction,
   className,
 }: HelpRequestCardProps) {
+  const { locale } = useLocale();
   const config = urgencyConfig[urgency];
   const UrgencyIcon = config.icon;
 
@@ -64,7 +66,7 @@ export function HelpRequestCard({
             <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-muted)]">
               <span>{memberName}</span>
               <span>·</span>
-              <span>{formatTimeAgo(createdAt)}</span>
+              <span>{formatTimeAgo(createdAt, locale)}</span>
             </div>
             {description && (
               <p className="text-sm text-[var(--text-secondary)] mt-2 line-clamp-2">

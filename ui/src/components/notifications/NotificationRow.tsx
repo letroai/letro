@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 type NotificationType = "info" | "success" | "warning" | "message";
 
@@ -37,6 +38,7 @@ export function NotificationRow({
   onAction,
   className,
 }: NotificationRowProps) {
+  const { locale } = useLocale();
   const config = typeConfig[type];
   const TypeIcon = config.icon;
 
@@ -62,7 +64,7 @@ export function NotificationRow({
         {title}
       </span>
       <span className="text-xs text-[var(--text-muted)] shrink-0">
-        {formatTimeAgo(createdAt)}
+        {formatTimeAgo(createdAt, locale)}
       </span>
       {unread && (
         <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />

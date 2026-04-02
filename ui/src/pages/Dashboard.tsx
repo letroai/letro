@@ -21,7 +21,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export default function Dashboard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: dashboard,
@@ -90,7 +90,7 @@ export default function Dashboard() {
           <MetricCard
             icon={DollarSign}
             label={t("costs.totalCost")}
-            value={formatCost(monthlyCostCents)}
+            value={formatCost(monthlyCostCents, locale)}
             color="default"
           />
         </div>
@@ -127,7 +127,7 @@ export default function Dashboard() {
                       {String(req["message"] ?? req["description"] ?? "")}
                     </p>
                     <p className="text-xs text-[var(--text-muted)] mt-1">
-                      {String(req["agentName"] ?? "")} &middot; {formatTimeAgo(String(req["createdAt"] ?? new Date().toISOString()))}
+                      {String(req["agentName"] ?? "")} &middot; {formatTimeAgo(String(req["createdAt"] ?? new Date().toISOString()), locale)}
                     </p>
                   </div>
                 </div>
@@ -188,7 +188,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span className="text-xs text-[var(--text-muted)] shrink-0 ml-3">
-                    {formatTimeAgo(String(item["occurredAt"] ?? item["createdAt"] ?? new Date().toISOString()))}
+                    {formatTimeAgo(String(item["occurredAt"] ?? item["createdAt"] ?? new Date().toISOString()), locale)}
                   </span>
                 </div>
               ))}

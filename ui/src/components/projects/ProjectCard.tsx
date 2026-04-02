@@ -2,6 +2,7 @@ import { Users, ListChecks, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCost, formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface ProjectCardProps {
   name: string;
@@ -30,6 +31,7 @@ export function ProjectCard({
   onClick,
   className,
 }: ProjectCardProps) {
+  const { locale } = useLocale();
   const config = statusConfig[status];
 
   return (
@@ -60,10 +62,10 @@ export function ProjectCard({
       </div>
 
       <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-        <span>{formatCost(costCents)}</span>
+        <span>{formatCost(costCents, locale)}</span>
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          {formatTimeAgo(lastActivityAt)}
+          {formatTimeAgo(lastActivityAt, locale)}
         </span>
       </div>
     </div>

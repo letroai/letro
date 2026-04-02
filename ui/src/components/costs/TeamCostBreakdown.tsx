@@ -1,6 +1,7 @@
 import { Identity } from "@/components/shared/Identity";
 import { formatCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface MemberCost {
   id: string;
@@ -17,6 +18,7 @@ export function TeamCostBreakdown({
   members,
   className,
 }: TeamCostBreakdownProps) {
+  const { locale, t } = useLocale();
   const sorted = [...members].sort((a, b) => b.costCents - a.costCents);
   const maxCost = sorted[0]?.costCents ?? 1;
 
@@ -28,7 +30,7 @@ export function TeamCostBreakdown({
       )}
     >
       <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-        팀원별 비용
+        {t("costs.teamBreakdown")}
       </h3>
       <ul className="flex flex-col gap-2">
         {sorted.map((member) => {
@@ -46,7 +48,7 @@ export function TeamCostBreakdown({
                 />
               </div>
               <span className="text-xs text-[var(--text-muted)] shrink-0 w-16 text-right">
-                {formatCost(member.costCents)}
+                {formatCost(member.costCents, locale)}
               </span>
             </li>
           );

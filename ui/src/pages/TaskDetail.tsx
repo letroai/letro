@@ -128,11 +128,11 @@ export default function TaskDetail() {
             )}
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>{t("common.created")}: {formatTimeAgo(task.createdAt)}</span>
+              <span>{t("common.created")}: {formatTimeAgo(task.createdAt, locale)}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>{t("common.updated")}: {formatTimeAgo(task.updatedAt)}</span>
+              <span>{t("common.updated")}: {formatTimeAgo(task.updatedAt, locale)}</span>
             </div>
           </div>
         </div>
@@ -409,6 +409,7 @@ function CollapsedCodeBlock({ lang, content, lineCount }: { lang: string; conten
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function CommentBubble({ comment }: { comment: Comment }) {
+  const { locale } = useLocale();
   const isHuman = comment.authorType === "human";
 
   return (
@@ -444,7 +445,7 @@ function CommentBubble({ comment }: { comment: Comment }) {
             isHuman ? "text-white/60" : "text-[var(--text-muted)]"
           }`}
         >
-          {formatTimeAgo(comment.createdAt)}
+          {formatTimeAgo(comment.createdAt, locale)}
         </p>
       </div>
     </div>

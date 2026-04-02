@@ -1,6 +1,7 @@
 import { CheckCircle2, Coffee } from "lucide-react";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface CompletedTask {
   id: string;
@@ -19,6 +20,7 @@ export function WorkProgress({
   completedTasks,
   className,
 }: WorkProgressProps) {
+  const { locale } = useLocale();
   return (
     <div
       className={cn(
@@ -66,7 +68,7 @@ export function WorkProgress({
                   {task.title}
                 </span>
                 <span className="text-xs text-[var(--text-muted)] shrink-0">
-                  {formatTimeAgo(task.completedAt)}
+                  {formatTimeAgo(task.completedAt, locale)}
                 </span>
               </li>
             ))}

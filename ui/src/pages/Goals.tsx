@@ -13,7 +13,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Goals() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: goals,
@@ -74,7 +74,7 @@ export default function Goals() {
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function GoalCard({ goal }: { goal: Goal }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const progressPercent = Math.round(goal.progress * 100);
 
   return (
@@ -117,7 +117,7 @@ function GoalCard({ goal }: { goal: Goal }) {
       </div>
 
       <div className="text-xs text-[var(--text-muted)]">
-        {t("goals.lastUpdated")} {formatTimeAgo(goal.updatedAt)}
+        {t("goals.lastUpdated")} {formatTimeAgo(goal.updatedAt, locale)}
       </div>
     </div>
   );

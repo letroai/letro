@@ -3,6 +3,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { formatCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface TeamMemberCardProps {
   name: string;
@@ -23,6 +24,7 @@ export function TeamMemberCard({
   onClick,
   className,
 }: TeamMemberCardProps) {
+  const { locale } = useLocale();
   return (
     <div
       onClick={onClick}
@@ -50,7 +52,7 @@ export function TeamMemberCard({
         </div>
       </div>
       <span className="text-xs text-[var(--text-muted)] shrink-0">
-        {formatCost(costCents)}
+        {formatCost(costCents, locale)}
       </span>
     </div>
   );

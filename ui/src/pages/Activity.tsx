@@ -26,7 +26,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Activity() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data,
@@ -87,6 +87,7 @@ export default function Activity() {
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function ActivityRow({ item }: { item: ActivityItem }) {
+  const { locale } = useLocale();
   const Icon = activityTypeIcon(item.type);
 
   return (
@@ -114,7 +115,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
               <span>&middot;</span>
             </>
           )}
-          <span>{formatTimeAgo(item.createdAt)}</span>
+          <span>{formatTimeAgo(item.createdAt, locale)}</span>
         </div>
       </div>
     </div>

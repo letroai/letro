@@ -114,21 +114,21 @@ export default function TeamMemberDetail() {
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-4 pt-3 border-t border-[var(--border-default)]">
             <div className="text-center">
-              <p className="text-xs text-[var(--text-muted)]">누적 비용</p>
+              <p className="text-xs text-[var(--text-muted)]">{t("team.totalCost")}</p>
               <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
-                {formatCost(agent.totalCost)}
+                {formatCost(agent.totalCost, locale)}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-[var(--text-muted)]">진행 중</p>
+              <p className="text-xs text-[var(--text-muted)]">{t("team.inProgressCount")}</p>
               <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
-                {inProgressTasks.length}개
+                {inProgressTasks.length}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-[var(--text-muted)]">완료</p>
+              <p className="text-xs text-[var(--text-muted)]">{t("team.completedCount")}</p>
               <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
-                {completedTasks.length}개
+                {completedTasks.length}
               </p>
             </div>
           </div>
@@ -139,20 +139,20 @@ export default function TeamMemberDetail() {
               <div className="flex items-center gap-2 text-sm">
                 <Activity className="w-4 h-4 text-[var(--text-muted)]" />
                 <span className="text-[var(--text-secondary)]">
-                  마지막 작업 시간: {formatTimeAgo(agent.lastHeartbeatAt)}
+                  {t("team.lastActivity")} {formatTimeAgo(agent.lastHeartbeatAt, locale)}
                 </span>
               </div>
             )}
             <div className="flex items-center gap-2 text-sm">
               <DollarSign className="w-4 h-4 text-[var(--text-muted)]" />
               <span className="text-[var(--text-secondary)]">
-                누적 비용: {formatCost(agent.totalCost)}
+                {t("team.totalCost")} {formatCost(agent.totalCost, locale)}
               </span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="w-4 h-4 text-[var(--text-muted)]" />
               <span className="text-[var(--text-secondary)]">
-                합류일: {formatTimeAgo(agent.createdAt)}
+                {t("team.joinedAt")} {formatTimeAgo(agent.createdAt, locale)}
               </span>
             </div>
           </div>
@@ -161,13 +161,13 @@ export default function TeamMemberDetail() {
         {/* Work Progress */}
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">
-            작업 현황
+            {t("team.taskStatus")}
           </h2>
 
           {assignedTasks.length === 0 ? (
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] p-4">
               <p className="text-sm text-[var(--text-secondary)] text-center">
-                배정된 작업이 없어요.
+                {t("team.noTasks")}
               </p>
             </div>
           ) : (
@@ -182,7 +182,7 @@ export default function TeamMemberDetail() {
                       {task.title}
                     </p>
                     <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                      {formatTimeAgo(task.updatedAt)}
+                      {formatTimeAgo(task.updatedAt, locale)}
                     </p>
                   </div>
                   <TaskStatusBadge status={task.status} />
@@ -199,32 +199,34 @@ export default function TeamMemberDetail() {
 /* ── Sub-components ──────────────────────────────────────────────── */
 
 function MemberStatusBadge({ status }: { status: AgentDetail["status"] }) {
+  const { t } = useLocale();
   const config: Record<
     AgentDetail["status"],
-    { label: string; variant: "success" | "warning" | "danger" | "outline" }
+    { key: string; variant: "success" | "warning" | "danger" | "outline" }
   > = {
-    active: { label: "활동 중", variant: "success" },
-    paused: { label: "일시 정지", variant: "warning" },
-    idle: { label: "대기 중", variant: "outline" },
-    error: { label: "문제 발생", variant: "danger" },
+    active: { key: "team.statusActive", variant: "success" },
+    paused: { key: "team.statusPaused", variant: "warning" },
+    idle: { key: "team.statusIdle", variant: "outline" },
+    error: { key: "team.statusError", variant: "danger" },
   };
 
-  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
-  return <Badge variant={variant}>{label}</Badge>;
+  const entry = config[status] ?? { key: status, variant: "outline" as const };
+  return <Badge variant={entry.variant}>{t(entry.key)}</Badge>;
 }
 
 function TaskStatusBadge({ status }: { status: Task["status"] }) {
+  const { t } = useLocale();
   const config: Record<
     Task["status"],
-    { label: string; variant: "default" | "success" | "warning" | "danger" | "outline" }
+    { key: string; variant: "default" | "success" | "warning" | "danger" | "outline" }
   > = {
-    open: { label: "대기", variant: "outline" },
-    in_progress: { label: "진행 중", variant: "default" },
-    review: { label: "검토 중", variant: "warning" },
-    done: { label: "완료", variant: "success" },
-    blocked: { label: "차단됨", variant: "danger" },
+    open: { key: "status.waiting", variant: "outline" },
+    in_progress: { key: "status.inProgress", variant: "default" },
+    review: { key: "status.inReview", variant: "warning" },
+    done: { key: "status.done", variant: "success" },
+    blocked: { key: "status.blocked", variant: "danger" },
   };
 
-  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
-  return <Badge variant={variant}>{label}</Badge>;
+  const entry = config[status] ?? { key: status, variant: "outline" as const };
+  return <Badge variant={entry.variant}>{t(entry.key)}</Badge>;
 }

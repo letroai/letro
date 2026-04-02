@@ -11,7 +11,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Costs() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: summary,
@@ -61,14 +61,14 @@ export default function Costs() {
             <div>
               <p className="text-xs text-[var(--text-muted)]">{t("costs.totalCost")}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {formatCost(totalCost)}
+                {formatCost(totalCost, locale)}
               </p>
             </div>
           </div>
           <div className="text-sm text-[var(--text-secondary)]">
-            <span>{t("costs.totalTokens", { n: formatNumber(summary.totalTokens) })}</span>
+            <span>{t("costs.totalTokens", { n: formatNumber(summary.totalTokens, locale) })}</span>
             <span className="mx-2">&middot;</span>
-            <span>{t("costs.totalEvents", { n: formatNumber(summary.eventCount) })}</span>
+            <span>{t("costs.totalEvents", { n: formatNumber(summary.eventCount, locale) })}</span>
           </div>
         </div>
       </div>

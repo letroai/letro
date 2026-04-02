@@ -1,5 +1,6 @@
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface FilePreviewProps {
   fileName: string;
@@ -18,6 +19,7 @@ export function FilePreview({
   updatedAt,
   className,
 }: FilePreviewProps) {
+  const { locale } = useLocale();
   const isCode = Boolean(language) || /\.(tsx?|jsx?|py|rs|go|json|ya?ml|css|html|sh|sql)$/.test(fileName);
 
   return (
@@ -58,7 +60,7 @@ export function FilePreview({
         <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--border-default)] text-xs text-[var(--text-muted)]">
           {author && <span>{author}</span>}
           {author && updatedAt && <span>·</span>}
-          {updatedAt && <span>{formatTimeAgo(updatedAt)}</span>}
+          {updatedAt && <span>{formatTimeAgo(updatedAt, locale)}</span>}
         </div>
       )}
     </div>

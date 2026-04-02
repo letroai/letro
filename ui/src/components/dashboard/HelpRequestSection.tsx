@@ -1,6 +1,7 @@
 import { AlertTriangle, AlertCircle, HelpCircle } from "lucide-react";
 import { formatTimeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface HelpRequest {
   id: string;
@@ -38,6 +39,7 @@ export function HelpRequestSection({
   onClickRequest,
   className,
 }: HelpRequestSectionProps) {
+  const { locale } = useLocale();
   if (requests.length === 0) return null;
 
   return (
@@ -60,7 +62,7 @@ export function HelpRequestSection({
                   {req.title}
                 </span>
                 <span className="text-xs text-[var(--text-muted)] shrink-0">
-                  {formatTimeAgo(req.createdAt)}
+                  {formatTimeAgo(req.createdAt, locale)}
                 </span>
               </button>
             </li>

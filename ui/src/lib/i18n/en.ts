@@ -107,6 +107,17 @@ export default {
   "team.noMembers": "No team members yet. The team will be formed automatically when the project starts.",
   "team.memberDetail": "Member",
   "team.memberFailedLoad": "Could not load member info.",
+  "team.lastActivity": "Last activity:",
+  "team.totalCost": "Total cost:",
+  "team.joinedAt": "Joined:",
+  "team.inProgressCount": "In Progress",
+  "team.completedCount": "Completed",
+  "team.taskStatus": "Task Status",
+  "team.noTasks": "No tasks assigned.",
+  "team.statusActive": "Active",
+  "team.statusPaused": "Paused",
+  "team.statusIdle": "Idle",
+  "team.statusError": "Error",
 
   // Tasks
   "tasks.title": "Tasks",
@@ -157,6 +168,9 @@ export default {
   "costs.events": "Events",
   "costs.totalTokens": "{n} tokens used",
   "costs.totalEvents": "{n} events",
+  "costs.monthlyCost": "This month",
+  "costs.budgetUsage": "{pct}% of {limit} budget used",
+  "costs.teamBreakdown": "Cost by member",
 
   // Inbox
   "inbox.title": "Inbox",

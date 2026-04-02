@@ -17,7 +17,7 @@ import {
 
 export default function HelpCenter() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const navigate = useNavigate();
 
   const {
@@ -110,6 +110,7 @@ function HelpRequestCard({
   request: HelpRequest;
   onClick: () => void;
 }) {
+  const { locale } = useLocale();
   return (
     <button
       onClick={onClick}
@@ -130,7 +131,7 @@ function HelpRequestCard({
             <MessageSquare className="w-3 h-3" />
             <span>{request.agentName}</span>
             <span>&middot;</span>
-            <span>{formatTimeAgo(request.createdAt)}</span>
+            <span>{formatTimeAgo(request.createdAt, locale)}</span>
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-2" />

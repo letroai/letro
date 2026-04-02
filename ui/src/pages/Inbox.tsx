@@ -27,7 +27,7 @@ import { useLocale } from "@/providers/LocaleProvider";
 export default function Inbox() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const {
     data: notifications,
@@ -142,6 +142,7 @@ function NotificationRow({
   notification: Notification;
   onClick: () => void;
 }) {
+  const { locale } = useLocale();
   const Icon = notificationTypeIcon(notification.type);
   const isUnread = !notification.read;
 
@@ -194,7 +195,7 @@ function NotificationRow({
           {notification.message}
         </p>
         <span className="text-xs text-[var(--text-muted)] mt-1 inline-block">
-          {formatTimeAgo(notification.createdAt)}
+          {formatTimeAgo(notification.createdAt, locale)}
         </span>
       </div>
     </button>
