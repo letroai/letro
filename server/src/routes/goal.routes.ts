@@ -17,7 +17,7 @@ goalRoutes.get("/companies/:companyId/goals", async (c) => {
 goalRoutes.get("/goals/:id", async (c) => {
   const services = c.get("services");
   const goal = await services.goal.getById(c.req.param("id"));
-  if (!goal) return c.json({ message: "목표를 찾을 수 없어요" }, 404);
+  if (!goal) return c.json({ message: "Goal not found" }, 404);
   return c.json(goal);
 });
 

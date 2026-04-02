@@ -538,7 +538,7 @@ export class HeartbeatService {
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `✅ 파일 변경 없음`,
+            body: locale === "ko" ? `✅ 파일 변경 없음` : `✅ No file changes`,
             createdByAgentId: agent.id,
           });
         }
@@ -548,7 +548,7 @@ export class HeartbeatService {
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `✅ 작업 완료`,
+            body: locale === "ko" ? `✅ 작업 완료` : `✅ Task complete`,
             createdByAgentId: agent.id,
           });
         } catch { /* ignore */ }
@@ -617,7 +617,9 @@ export class HeartbeatService {
           const { readFile } = await import("node:fs/promises");
           const { join } = await import("node:path");
           const progressMd = await readFile(join(ws.path, "PROGRESS.md"), "utf-8");
-          progressContext = `\n\n현재 프로젝트 진행 현황 (PROGRESS.md):\n${progressMd.slice(0, 2000)}`;
+          progressContext = locale === "ko"
+            ? `\n\n현재 프로젝트 진행 현황 (PROGRESS.md):\n${progressMd.slice(0, 2000)}`
+            : `\n\nCurrent project progress (PROGRESS.md):\n${progressMd.slice(0, 2000)}`;
         } catch { /* PROGRESS.md doesn't exist yet, skip */ }
       }
     }
@@ -637,16 +639,16 @@ export class HeartbeatService {
 
     // Build prompt and call Claude CLI
     const goalSummary = goalData
-      .map((g) => `목표: ${g.title}\n설명: ${g.description ?? "없음"}`)
+      .map((g) => locale === "ko" ? `목표: ${g.title}\n설명: ${g.description ?? "없음"}` : `Goal: ${g.title}\nDescription: ${g.description ?? "none"}`)
       .join("\n\n");
 
     const ideaContext = ideaStructured
-      ? `\n\n아이디어 구조화 데이터:\n${JSON.stringify(ideaStructured, null, 2)}`
+      ? `\n\n${locale === "ko" ? "아이디어 구조화 데이터" : "Structured idea data"}:\n${JSON.stringify(ideaStructured, null, 2)}`
       : "";
 
     const existingContext = existingTitles
-      ? `\n\n이미 존재하는 작업 목록 (중복 생성 금지):\n${existingTitles}`
-      : "\n\n아직 생성된 작업이 없습니다.";
+      ? `\n\n${locale === "ko" ? "이미 존재하는 작업 목록 (중복 생성 금지)" : "Existing tasks (no duplicates)"}:\n${existingTitles}`
+      : locale === "ko" ? "\n\n아직 생성된 작업이 없습니다." : "\n\nNo tasks created yet.";
 
     // Determine the current max phase from existing tasks
     const existingPhases = existingIssues
@@ -661,42 +663,29 @@ export class HeartbeatService {
       i.status === "in_progress" || i.status === "backlog",
     );
 
-    const prompt = `프로젝트 "${project.name}"의 팀장으로서 다음 목표를 달성하기 위한 구체적인 작업을 생성하세요.
+    const prompt = locale === "ko"
+      ? `프로젝트 "${project.name}"의 팀장으로서 다음 목표를 달성하기 위한 구체적인 작업을 생성하세요.
 
 ${goalSummary}${ideaContext}${existingContext}${progressContext}
 
-반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
-[
-  {
-    "title": "작업 제목",
-    "description": "구체적으로 무엇을 해야 하는지",
-    "priority": "medium",
-    "phase": 1,
-    "depends_on": []
-  }
-]
+반드시 아래 JSON 배열 형식으로만 응답하세요:
+[{"title":"작업 제목","description":"구체적으로 무엇을 해야 하는지","priority":"medium","phase":1,"depends_on":[]}]
 
-■ Phase (단계) 규칙:
-- phase는 작업 실행 순서를 나타내는 숫자입니다
-- 같은 phase의 작업들은 동시에 병렬 실행됩니다
-- phase N+1의 작업은 phase N의 모든 작업이 완료된 후에만 시작됩니다
-- 현재 가장 높은 phase는 ${currentMaxPhase}입니다
+■ Phase: 같은 phase=병렬, N+1은 N 완료 후. 현재 최고 phase: ${currentMaxPhase}
+■ 즉시 병렬 실행 가능한 작업만 생성. 없으면 빈 배열 [].
+${hasBlockingTasks ? "⚠️ 진행/대기 중 작업 있음. 독립적 병렬 작업만." : ""}
+■ depends_on: 같은 phase 내 선행 작업 제목만. 최대 ${maxNew}개, 중복 금지.`
+      : `As the team leader of project "${project.name}", create specific tasks to achieve the following goals.
 
-■ 핵심 원칙 — 지금 바로 실행 가능한 작업만 생성:
-- 현재 진행 중이거나 대기 중인 작업이 있으면, 그 작업의 결과가 필요한 후속 작업은 만들지 마세요
-- 즉시 병렬로 실행할 수 있는 작업만 생성하세요
-- 병렬 가능한 작업이 없으면 빈 배열 []을 반환하세요 (무리하게 만들지 마세요)
-${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업이 있습니다. 이 작업들과 독립적으로 병렬 실행 가능한 작업만 생성하세요." : ""}
+${goalSummary}${ideaContext}${existingContext}${progressContext}
 
-■ 의존성 규칙:
-- depends_on: 같은 phase 안에서도 특정 작업이 먼저 완료되어야 하면 해당 작업의 제목을 넣으세요
-- 다른 phase 의존성은 phase 번호가 자동 관리
+Respond with ONLY a JSON array:
+[{"title":"task title","description":"what to do","priority":"medium","phase":1,"depends_on":[]}]
 
-■ 기타 규칙:
-- 최대 ${maxNew}개, 중복 금지
-- 각 작업은 한 명이 독립 수행 가능해야 함
-- 우선순위: "critical", "high", "medium", "low"
-- PROGRESS.md의 현재 상태를 참고하여 다음에 필요한 작업만 생성하세요`;
+■ Phase: same phase=parallel, N+1 starts after N completes. Current max phase: ${currentMaxPhase}
+■ Create ONLY tasks that can run in parallel RIGHT NOW. If none, return [].
+${hasBlockingTasks ? "⚠️ There are in-progress/waiting tasks. Only create independent parallel tasks." : ""}
+■ depends_on: only for same-phase prerequisites. Max ${maxNew} tasks, no duplicates.`;
 
     let tasksToCreate: Array<{
       title: string;
@@ -707,7 +696,9 @@ ${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업�
     }> = [];
 
     const response = await callLLM({
-      system: "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요.",
+      system: locale === "ko"
+        ? "당신은 소프트웨어 프로젝트 팀장입니다. 목표를 분석하여 구체적인 작업으로 분해합니다. JSON 배열로만 응답하세요."
+        : "You are a software project team leader. Decompose goals into specific tasks. Respond with JSON array only.",
       prompt,
     });
 
@@ -821,7 +812,7 @@ ${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업�
       type: "activity",
       agentName: ts("leaderName", locale),
       agentRole: "leader",
-      message: `${created.length}개의 작업을 생성했어요`,
+      message: (() => { const fn = t("activityTasksCreated", locale); return typeof fn === "function" ? fn(created.length) : fn; })(),
     }, { agentId: agent.id, entityType: "project", entityId: project.id });
   }
 
@@ -966,8 +957,9 @@ ${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업�
       let specialistInfo: { name: string; systemPrompt: string };
       try {
         const response = await callLLM({
-          system: `You design specialist AI agent profiles. Given a task, create a focused specialist.
-Return JSON only: { "name": "specialist title in Korean (3-5 words)", "systemPrompt": "detailed persona and instructions in Korean (5-8 sentences)" }`,
+          system: locale === "ko"
+            ? `You design specialist AI agent profiles. Given a task, create a focused specialist.\nReturn JSON only: { "name": "specialist title in Korean (3-5 words)", "systemPrompt": "detailed persona and instructions in Korean (5-8 sentences)" }`
+            : `You design specialist AI agent profiles. Given a task, create a focused specialist.\nReturn JSON only: { "name": "specialist title in English (3-5 words)", "systemPrompt": "detailed persona and instructions in English (5-8 sentences)" }`,
           prompt: `Design a specialist agent for this task:
 
 Title: ${task.title}
@@ -975,15 +967,14 @@ Description: ${task.description ?? "No description"}
 
 The specialist should have deep expertise specifically relevant to this task.
 Their systemPrompt should describe their skills, approach, and focus areas.
-Name should be descriptive like "API 설계 전문가" or "데이터 모델링 전문가".`,
+Name should be descriptive like ${locale === "ko" ? '"API 설계 전문가" or "데이터 모델링 전문가"' : '"API Architecture Specialist" or "Data Modeling Expert"'}.`,
         });
         specialistInfo = JSON.parse(response.content);
       } catch {
         // Fallback if Claude fails
-        specialistInfo = {
-          name: `${task.title.slice(0, 15)} 전문가`,
-          systemPrompt: `당신은 "${task.title}" 작업의 전문가입니다. 이 분야에서 깊은 경험과 전문성을 가지고 있습니다.`,
-        };
+        specialistInfo = locale === "ko"
+          ? { name: `${task.title.slice(0, 15)} 전문가`, systemPrompt: `당신은 "${task.title}" 작업의 전문가입니다.` }
+          : { name: `${task.title.slice(0, 20)} Specialist`, systemPrompt: `You are a specialist for "${task.title}". You have deep expertise in this area.` };
       }
 
       const [newAgent] = await this.db
@@ -1021,7 +1012,7 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
         type: "activity",
         agentName: ts("leaderName", locale),
         agentRole: "leader",
-        message: `"${task.title}" 작업을 위해 ${specialistInfo.name}을(를) 고용했어요`,
+        message: (() => { const fn = t("activityHired", locale); return typeof fn === "function" ? fn(specialistInfo.name, task.title) : fn; })(),
       }, { agentId: agent.id, entityType: "agent", entityId: newAgent?.id });
     }
   }
@@ -1119,7 +1110,7 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
         type: "activity",
         agentName: ts("leaderName", locale),
         agentRole: "leader",
-        message: `"${task.title}" 작업을 ${member.name}에게 배정했어요`,
+        message: (() => { const fn = t("activityAssigned", locale); return typeof fn === "function" ? fn(task.title, member.name) : fn; })(),
       }, { agentId: agent.id, entityType: "issue", entityId: task.id });
 
       assignedMemberIds.push(member.id);

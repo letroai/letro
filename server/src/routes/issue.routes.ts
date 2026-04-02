@@ -24,7 +24,7 @@ issueRoutes.get("/companies/:companyId/issues", async (c) => {
 issueRoutes.get("/issues/:id", async (c) => {
   const services = c.get("services");
   const issue = await services.issue.getById(c.req.param("id"));
-  if (!issue) return c.json({ message: "작업을 찾을 수 없어요" }, 404);
+  if (!issue) return c.json({ message: "Task not found" }, 404);
   return c.json(issue);
 });
 

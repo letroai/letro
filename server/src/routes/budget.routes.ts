@@ -24,5 +24,5 @@ budgetRoutes.post("/companies/:companyId/budget-incidents/:id/respond", async (c
   const { response } = body as { response: "increase_budget" | "stop" | "ignore" };
   const services = c.get("services");
   await services.budget.respondToIncident(c.req.param("id"), response);
-  return c.json({ message: "응답이 처리됐어요" });
+  return c.json({ message: "Response processed" });
 });

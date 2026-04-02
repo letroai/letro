@@ -22,7 +22,7 @@ agentRoutes.get("/companies/:companyId/agents", async (c) => {
 agentRoutes.get("/agents/:id", async (c) => {
   const services = c.get("services");
   const agent = await services.agent.getById(c.req.param("id"));
-  if (!agent) return c.json({ message: "팀원을 찾을 수 없어요" }, 404);
+  if (!agent) return c.json({ message: "Agent not found" }, 404);
   return c.json(agent);
 });
 

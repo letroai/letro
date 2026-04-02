@@ -56,7 +56,7 @@ projectScopeRoutes.get("/projects/:projectId/tasks", async (c) => {
 projectScopeRoutes.get("/projects/:projectId/tasks/:taskId", async (c) => {
   const services = c.get("services");
   const task = await services.issue.getById(c.req.param("taskId"));
-  if (!task) return c.json({ message: "작업을 찾을 수 없어요" }, 404);
+  if (!task) return c.json({ message: "Task not found" }, 404);
   return c.json(task);
 });
 
@@ -67,13 +67,13 @@ projectScopeRoutes.get("/projects/:projectId/tasks/:taskId/comments", async (c) 
 
   // Map DB fields to UI-expected format
   const mapped = await Promise.all(rawComments.map(async (cm) => {
-    let authorName = "시스템";
+    let authorName = "System";
     let authorType: "human" | "agent" = "agent";
     if (cm.createdByAgentId) {
       const agent = await services.agent.getById(cm.createdByAgentId);
-      authorName = (agent as Record<string, unknown> | null)?.name as string ?? "팀원";
+      authorName = (agent as Record<string, unknown> | null)?.name as string ?? "Member";
     } else if (cm.createdByUserId) {
-      authorName = "나";
+      authorName = "Me";
       authorType = "human";
     }
     return {
@@ -197,8 +197,8 @@ projectScopeRoutes.get("/projects/:projectId/dashboard", async (c) => {
     recentActivities: [],
     helpRequests: [],
     userFacingSummary: activeAgents > 0
-      ? `팀원 ${activeAgents}명이 활동 중이에요.`
-      : "아직 팀원이 활동하지 않고 있어요.",
+      ? `${activeAgents} members are active.`
+      : "No members active yet.",
   });
 });
 
@@ -307,7 +307,7 @@ projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
         await db.insert(issueComments).values({
           companyId: task.companyId,
           issueId: task.id,
-          body: `(정지 시점 작업 내역)\n${output.slice(0, 2000)}`,
+          body: `(Work log at pause)\n${output.slice(0, 2000)}`,
           createdByAgentId: task.assigneeAgentId,
         });
       } catch { /* ignore */ }
@@ -337,7 +337,7 @@ projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
     publishLiveEvent(companyId, {
       type: "project:updated",
       projectId,
-      message: "프로젝트가 정지되었어요",
+      message: "Project paused",
     });
   }
 
@@ -406,7 +406,7 @@ projectScopeRoutes.post("/projects/:projectId/resume", async (c) => {
     publishLiveEvent(companyId, {
       type: "project:updated",
       projectId,
-      message: "프로젝트가 재개되었어요",
+      message: "Project resumed",
     });
   }
 

@@ -17,7 +17,7 @@ companyRoutes.get("/companies", async (c) => {
 companyRoutes.get("/companies/:id", async (c) => {
   const services = c.get("services");
   const company = await services.company.getById(c.req.param("id"));
-  if (!company) return c.json({ message: "회사를 찾을 수 없어요" }, 404);
+  if (!company) return c.json({ message: "Company not found" }, 404);
   return c.json(company);
 });
 

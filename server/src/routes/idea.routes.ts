@@ -8,7 +8,7 @@ export const ideaRoutes = new Hono<AppBindings>();
 
 function getCompanyId(actor: { kind: string; companyId?: string | null }): string {
   const id = "companyId" in actor ? actor.companyId : null;
-  if (!id) throw new HTTPException(400, { message: "회사 정보를 찾을 수 없어요" });
+  if (!id) throw new HTTPException(400, { message: "Company not found" });
   return id;
 }
 
@@ -29,7 +29,7 @@ ideaRoutes.post("/ideas", async (c) => {
 ideaRoutes.get("/ideas/:id", async (c) => {
   const services = c.get("services");
   const idea = await services.idea.getById(c.req.param("id"));
-  if (!idea) return c.json({ message: "아이디어를 찾을 수 없어요" }, 404);
+  if (!idea) return c.json({ message: "Idea not found" }, 404);
   return c.json(idea);
 });
 

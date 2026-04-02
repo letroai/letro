@@ -8,7 +8,7 @@ export const dashboardRoutes = new Hono<AppBindings>();
 dashboardRoutes.get("/projects/:projectId/dashboard", async (c) => {
   const actor = c.get("actor");
   const companyId = "companyId" in actor ? actor.companyId : null;
-  if (!companyId) return c.json({ message: "회사 정보를 찾을 수 없어요" }, 400);
+  if (!companyId) return c.json({ message: "Company ID required" }, 400);
   const services = c.get("services");
   const summary = await services.dashboard.getSummary(companyId);
   return c.json(summary);

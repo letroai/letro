@@ -54,7 +54,7 @@ const messages = {
   // Activity feed
   activityTaskStarted: { ko: (title: string) => `"${title}" 작업을 시작했어요`, en: (title: string) => `Started working on "${title}"` },
   activityTaskCompleted: { ko: (title: string) => `"${title}" 작업을 완료했어요`, en: (title: string) => `Completed "${title}"` },
-  activityTasksCreated: { ko: (n: number) => `${n}개의 작업을 생성했어요`, en: (n: number) => `Created ${n} tasks` },
+  activityTasksCreated: { ko: (n: number) => `${n}개의 작업을 생성했어요`, en: (n: number) => `Created ${n} task${n === 1 ? "" : "s"}` },
   activityHired: { ko: (name: string, task: string) => `"${task}" 작업을 위해 ${name}을(를) 고용했어요`, en: (name: string, task: string) => `Hired ${name} for "${task}"` },
   activityAssigned: { ko: (task: string, member: string) => `"${task}" 작업을 ${member}에게 배정했어요`, en: (task: string, member: string) => `Assigned "${task}" to ${member}` },
 

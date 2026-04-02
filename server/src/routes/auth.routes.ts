@@ -36,21 +36,21 @@ function clearRefreshCookie(c: Parameters<typeof deleteCookie>[0]) {
 // ===== Validation schemas =====
 
 const RegisterSchema = z.object({
-  email: z.string().email("이메일 형식이 올바르지 않아요"),
+  email: z.string().email("Invalid email format"),
   password: z
     .string()
-    .min(8, "비밀번호는 8자 이상이어야 해요")
-    .max(128, "비밀번호가 너무 길어요"),
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password is too long"),
   displayName: z
     .string()
-    .min(2, "닉네임은 2자 이상이어야 해요")
-    .max(50, "닉네임은 50자 이하여야 해요")
+    .min(2, "Display name must be at least 2 characters")
+    .max(50, "Display name must be 50 characters or fewer")
     .trim(),
 });
 
 const LoginSchema = z.object({
-  email: z.string().email("이메일 형식이 올바르지 않아요"),
-  password: z.string().min(1, "비밀번호를 입력해주세요"),
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
 });
 
 // ===== Helper: generate a short text ID =====
@@ -72,7 +72,7 @@ authRoutes.get("/auth/session", async (c) => {
     return c.json({
       id: "local-user",
       email: "local@letro.ai",
-      displayName: "나",
+      displayName: "Me",
       avatarUrl: null,
       createdAt: new Date().toISOString(),
     });
@@ -120,20 +120,20 @@ authRoutes.get("/auth/session", async (c) => {
 authRoutes.post("/auth/register", async (c) => {
   const config = c.get("config");
   if (config.authMode === "local_trusted") {
-    return c.json({ error: "이 서버는 인증이 필요 없는 로컬 모드로 실행 중이에요" }, 400);
+    return c.json({ error: "This server is running in local mode and does not require authentication" }, 400);
   }
 
   let body: unknown;
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "요청 형식이 올바르지 않아요" }, 400);
+    return c.json({ error: "Invalid request format" }, 400);
   }
 
   const result = RegisterSchema.safeParse(body);
   if (!result.success) {
     const firstError = Object.values(result.error.flatten().fieldErrors)[0]?.[0];
-    return c.json({ error: firstError ?? "입력 내용을 다시 확인해주세요" }, 400);
+    return c.json({ error: firstError ?? "Please check your input and try again" }, 400);
   }
 
   const { email, password, displayName } = result.data;
@@ -147,7 +147,7 @@ authRoutes.post("/auth/register", async (c) => {
     .limit(1);
 
   if (existing) {
-    return c.json({ error: "이미 사용 중인 이메일이에요" }, 409);
+    return c.json({ error: "This email is already in use" }, 409);
   }
 
   // Hash password
@@ -182,7 +182,7 @@ authRoutes.post("/auth/register", async (c) => {
   const [newCompany] = await db
     .insert(companies)
     .values({
-      name: `${displayName}의 워크스페이스`,
+      name: `${displayName}'s Workspace`,
       slug: `user-${userId.slice(0, 8)}`,
       defaultAutonomyLevel: 4,
       autoHireEnabled: true,
@@ -246,20 +246,20 @@ authRoutes.post("/auth/register", async (c) => {
 authRoutes.post("/auth/login", async (c) => {
   const config = c.get("config");
   if (config.authMode === "local_trusted") {
-    return c.json({ error: "이 서버는 인증이 필요 없는 로컬 모드로 실행 중이에요" }, 400);
+    return c.json({ error: "This server is running in local mode and does not require authentication" }, 400);
   }
 
   let body: unknown;
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: "요청 형식이 올바르지 않아요" }, 400);
+    return c.json({ error: "Invalid request format" }, 400);
   }
 
   const result = LoginSchema.safeParse(body);
   if (!result.success) {
     const firstError = Object.values(result.error.flatten().fieldErrors)[0]?.[0];
-    return c.json({ error: firstError ?? "이메일과 비밀번호를 입력해주세요" }, 400);
+    return c.json({ error: firstError ?? "Email and password are required" }, 400);
   }
 
   const { email, password } = result.data;
@@ -274,7 +274,7 @@ authRoutes.post("/auth/login", async (c) => {
 
   if (!user) {
     // Use identical error message to prevent email enumeration
-    return c.json({ error: "이메일 또는 비밀번호가 올바르지 않아요" }, 401);
+    return c.json({ error: "Invalid email or password" }, 401);
   }
 
   // Look up credential in accounts
@@ -287,12 +287,12 @@ authRoutes.post("/auth/login", async (c) => {
     .limit(1);
 
   if (!credential?.password) {
-    return c.json({ error: "이메일 또는 비밀번호가 올바르지 않아요" }, 401);
+    return c.json({ error: "Invalid email or password" }, 401);
   }
 
   const isValid = await verifyPassword(password, credential.password);
   if (!isValid) {
-    return c.json({ error: "이메일 또는 비밀번호가 올바르지 않아요" }, 401);
+    return c.json({ error: "Invalid email or password" }, 401);
   }
 
   // Create new session
@@ -353,12 +353,12 @@ authRoutes.post("/auth/logout", async (c) => {
 authRoutes.post("/auth/refresh", async (c) => {
   const config = c.get("config");
   if (config.authMode === "local_trusted") {
-    return c.json({ error: "로컬 모드에서는 토큰 갱신이 필요 없어요" }, 400);
+    return c.json({ error: "Token refresh is not needed in local mode" }, 400);
   }
 
   const refreshToken = getCookie(c, REFRESH_COOKIE);
   if (!refreshToken) {
-    return c.json({ error: "로그인이 필요해요" }, 401);
+    return c.json({ error: "Login required" }, 401);
   }
 
   const db = c.get("db");
@@ -376,13 +376,13 @@ authRoutes.post("/auth/refresh", async (c) => {
 
   if (!session) {
     clearRefreshCookie(c);
-    return c.json({ error: "세션이 만료됐어요. 다시 로그인해주세요" }, 401);
+    return c.json({ error: "Session expired. Please log in again" }, 401);
   }
 
   if (session.expiresAt < new Date()) {
     await db.delete(sessions).where(eq(sessions.id, session.id));
     clearRefreshCookie(c);
-    return c.json({ error: "세션이 만료됐어요. 다시 로그인해주세요" }, 401);
+    return c.json({ error: "Session expired. Please log in again" }, 401);
   }
 
   // Look up user
@@ -394,7 +394,7 @@ authRoutes.post("/auth/refresh", async (c) => {
 
   if (!user) {
     clearRefreshCookie(c);
-    return c.json({ error: "사용자를 찾을 수 없어요" }, 401);
+    return c.json({ error: "User not found" }, 401);
   }
 
   // Rotate: issue new access token (refresh token stays the same unless near expiry)

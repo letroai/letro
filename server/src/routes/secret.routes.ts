@@ -24,16 +24,16 @@ secretRoutes.get("/secrets/resolve", async (c) => {
 // GET /api/secrets/:id
 secretRoutes.get("/secrets/:id", async (c) => {
   const secret = await c.get("services").secret.getById(c.req.param("id"));
-  if (!secret) return c.json({ message: "시크릿을 찾을 수 없어요" }, 404);
+  if (!secret) return c.json({ message: "Secret not found" }, 404);
   return c.json(secret);
 });
 
 // POST /api/secrets
 secretRoutes.post("/secrets", async (c) => {
   const companyId = getCompanyId(c.get("actor"));
-  if (!companyId) return c.json({ message: "회사 정보 필요" }, 400);
+  if (!companyId) return c.json({ message: "Company ID required" }, 400);
   const body = await c.req.json<{ key: string; value: string; description?: string; envVar?: string }>();
-  if (!body.key || !body.value) return c.json({ message: "key와 value가 필요해요" }, 400);
+  if (!body.key || !body.value) return c.json({ message: "key and value are required" }, 400);
   const secret = await c.get("services").secret.create(companyId, body);
   return c.json(secret, 201);
 });
@@ -41,7 +41,7 @@ secretRoutes.post("/secrets", async (c) => {
 // PATCH /api/secrets/:id/rotate
 secretRoutes.patch("/secrets/:id/rotate", async (c) => {
   const body = await c.req.json<{ value: string }>();
-  if (!body.value) return c.json({ message: "새 값이 필요해요" }, 400);
+  if (!body.value) return c.json({ message: "New value is required" }, 400);
   const result = await c.get("services").secret.rotate(c.req.param("id"), body.value);
   return c.json(result);
 });

@@ -26,7 +26,7 @@ approvalRoutes.get("/approvals/pending/count", async (c) => {
 // GET /api/approvals/:id
 approvalRoutes.get("/approvals/:id", async (c) => {
   const approval = await c.get("services").approval.getById(c.req.param("id"));
-  if (!approval) return c.json({ message: "확인 요청을 찾을 수 없어요" }, 404);
+  if (!approval) return c.json({ message: "Approval not found" }, 404);
   return c.json(approval);
 });
 
@@ -49,7 +49,7 @@ approvalRoutes.post("/approvals/:id/reject", async (c) => {
 // POST /api/approvals/:id/revision
 approvalRoutes.post("/approvals/:id/revision", async (c) => {
   const body = await c.req.json<{ note: string }>();
-  if (!body.note) return c.json({ message: "수정 요청 내용이 필요해요" }, 400);
+  if (!body.note) return c.json({ message: "Revision note is required" }, 400);
   const userId = getUserId(c.get("actor"));
   const result = await c.get("services").approval.requestRevision(c.req.param("id"), userId, body.note);
   return c.json(result);

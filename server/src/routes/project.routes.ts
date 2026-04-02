@@ -27,7 +27,7 @@ projectRoutes.get("/companies/:companyId/projects", async (c) => {
 projectRoutes.get("/projects/:id", async (c) => {
   const services = c.get("services");
   const project = await services.project.getById(c.req.param("id"));
-  if (!project) return c.json({ message: "프로젝트를 찾을 수 없어요" }, 404);
+  if (!project) return c.json({ message: "Project not found" }, 404);
   return c.json(project);
 });
 
