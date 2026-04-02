@@ -83,8 +83,11 @@ export function publishLiveEvent(companyId: string, event: LiveEvent): void {
     timestamp: new Date().toISOString(),
   });
 
-  const subs = subscriptions.get(companyId);
-  if (subs) {
+  // Broadcast to all connected clients.
+  // In local_trusted mode the UI subscribes with companyId="default"
+  // while agents publish with the actual company UUID — so we broadcast
+  // to every connection to avoid mismatches.
+  for (const subs of subscriptions.values()) {
     for (const ws of subs) {
       if (ws.readyState === WebSocket.OPEN) ws.send(payload);
     }
