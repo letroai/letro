@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Star, User, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Star, User } from "lucide-react";
+import { api } from "@/api/client";
 
 interface ActivityEvent {
   agentName: string;
@@ -8,17 +10,49 @@ interface ActivityEvent {
   timestamp: string;
 }
 
+interface DBNotification {
+  id: string;
+  kind: string;
+  summary: string | null;
+  details: Record<string, unknown> | null;
+  agentId: string | null;
+  occurredAt: string;
+}
+
+function dbToEvent(n: DBNotification): ActivityEvent | null {
+  if (n.kind !== "activity") return null;
+  const details = n.details ?? {};
+  return {
+    agentName: (details.agentName as string) ?? "팀원",
+    agentRole: (details.agentRole as "leader" | "member") ?? "member",
+    message: (details.message as string) ?? n.summary ?? "",
+    timestamp: (details.timestamp as string) ?? n.occurredAt,
+  };
+}
+
 export function LiveActivityFeed() {
-  const [events, setEvents] = useState<ActivityEvent[]>([]);
+  const [liveEvents, setLiveEvents] = useState<ActivityEvent[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Load past events from DB
+  const { data: pastNotifications } = useQuery<DBNotification[]>({
+    queryKey: ["notifications", "feed"],
+    queryFn: () => api.get<DBNotification[]>("/notifications", { limit: 30 }),
+    staleTime: 30_000,
+  });
+
+  const pastEvents: ActivityEvent[] = (pastNotifications ?? [])
+    .map(dbToEvent)
+    .filter((e): e is ActivityEvent => e !== null)
+    .reverse(); // DB returns desc, we want asc
+
+  // Listen for real-time events
   useEffect(() => {
     const handler = (e: Event) => {
       try {
-        const me = e as MessageEvent;
-        const data = JSON.parse(me.data as string);
+        const data = JSON.parse((e as MessageEvent).data as string);
         if (data.type === "activity") {
-          setEvents((prev) => [
+          setLiveEvents((prev) => [
             ...prev.slice(-50),
             {
               agentName: data.agentName as string,
@@ -28,28 +62,32 @@ export function LiveActivityFeed() {
             },
           ]);
         }
-      } catch {
-        // Ignore parse failures
-      }
+      } catch { /* ignore */ }
     };
-
     window.addEventListener("letro-ws-message", handler);
     return () => window.removeEventListener("letro-ws-message", handler);
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [events]);
+  }, [liveEvents]);
 
-  if (events.length === 0) {
+  // Merge past (from DB) + live (from WebSocket), deduplicate by message+time
+  const allEvents = [...pastEvents, ...liveEvents];
+  const seen = new Set<string>();
+  const deduped = allEvents.filter((e) => {
+    const key = `${e.message}|${e.timestamp}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (deduped.length === 0) {
     return (
       <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Loader2 className="w-4 h-4 text-primary-500 animate-spin" />
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            실시간 활동
-          </h3>
-        </div>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">
+          활동 내역
+        </h3>
         <p className="text-xs text-[var(--text-muted)]">
           팀이 작업을 시작하면 여기에 나타나요...
         </p>
@@ -62,14 +100,14 @@ export function LiveActivityFeed() {
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full bg-success-500 animate-pulse" />
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          실시간 활동
+          활동 내역
         </h3>
         <span className="text-xs text-[var(--text-muted)]">
-          {events.length}개
+          {deduped.length}개
         </span>
       </div>
       <div className="max-h-64 overflow-y-auto space-y-2">
-        {events.map((event, i) => {
+        {deduped.map((event, i) => {
           const time = new Date(event.timestamp).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
             minute: "2-digit",

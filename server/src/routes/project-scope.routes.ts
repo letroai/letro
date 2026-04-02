@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import type { AppBindings } from "../env.js";
 import { eq, and, sql } from "drizzle-orm";
 import { projectGoals, goals, agents, issues, issueComments } from "@letro/db/schema";
-import { getTaskOutput } from "../lib/task-output-store.js";
+import { getTaskOutput, loadTaskOutputFromDB } from "../lib/task-output-store.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { getCompanyId } from "../lib/route-helpers.js";
 
@@ -79,7 +79,8 @@ projectScopeRoutes.post("/projects/:projectId/tasks/:taskId/comments", async (c)
 
 // GET /api/projects/:projectId/tasks/:taskId/output
 projectScopeRoutes.get("/projects/:projectId/tasks/:taskId/output", async (c) => {
-  const output = getTaskOutput(c.req.param("taskId"));
+  const taskId = c.req.param("taskId");
+  const output = await loadTaskOutputFromDB(taskId);
   return c.json({ output });
 });
 

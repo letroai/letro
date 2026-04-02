@@ -16,6 +16,7 @@ import type { WorkspaceService } from "./workspace.service.js";
 import type { SecretService } from "./secret.service.js";
 import type { AutonomyConfigService } from "./autonomy/autonomy-config.js";
 import type { ApprovalService } from "./approval.service.js";
+import type { ActivityLogService } from "./activity-log.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS } from "../lib/defaults.js";
@@ -42,6 +43,7 @@ export class HeartbeatService {
   private secretService?: SecretService;
   private autonomyConfig?: AutonomyConfigService;
   private approvalService?: ApprovalService;
+  private activityLog?: ActivityLogService;
 
   constructor(deps: ServiceDependencies) {
     this.db = deps.db;
@@ -63,6 +65,30 @@ export class HeartbeatService {
 
   setApprovalService(as_: ApprovalService) {
     this.approvalService = as_;
+  }
+
+  setActivityLog(al: ActivityLogService) {
+    this.activityLog = al;
+  }
+
+  /** Publishes a live event AND persists it to activity_log. */
+  private publishAndLog(
+    companyId: string,
+    event: { type: string; [key: string]: unknown },
+    logInfo?: { agentId?: string | undefined; entityType?: string | undefined; entityId?: string | undefined },
+  ) {
+    publishLiveEvent(companyId, event);
+    const logEntry: Record<string, unknown> = {
+      companyId,
+      kind: event.type as string,
+      summary: (event.message as string) ?? (event.agentName as string) ?? "",
+      details: event as Record<string, unknown>,
+    };
+    if (logInfo?.agentId) logEntry.agentId = logInfo.agentId;
+    else if (event.agentId) logEntry.agentId = event.agentId;
+    if (logInfo?.entityType) logEntry.entityType = logInfo.entityType;
+    if (logInfo?.entityId) logEntry.entityId = logInfo.entityId;
+    this.activityLog?.log(logEntry as Parameters<ActivityLogService["log"]>[0]).catch(() => {});
   }
 
   /**
@@ -379,13 +405,12 @@ export class HeartbeatService {
       `Member executing task: ${task.title}`,
     );
 
-    publishLiveEvent(agent.companyId, {
+    this.publishAndLog(agent.companyId, {
       type: "activity",
       agentName: agent.name,
       agentRole: "member",
       message: `"${task.title}" 작업을 시작했어요`,
-      timestamp: new Date().toISOString(),
-    });
+    }, { agentId: agent.id, entityType: "issue", entityId: task.id });
 
     // 2. Look up workspace (required for execution)
     const workspace = this.workspaceService
@@ -483,13 +508,12 @@ After creating all files, write a one-paragraph summary of what you built.`;
         `Member completed task: ${task.title}`,
       );
 
-      publishLiveEvent(agent.companyId, {
+      this.publishAndLog(agent.companyId, {
         type: "activity",
         agentName: agent.name,
         agentRole: "member",
         message: `"${task.title}" 작업을 완료했어요`,
-        timestamp: new Date().toISOString(),
-      });
+      }, { agentId: agent.id, entityType: "issue", entityId: task.id });
     } catch (err) {
       this.logger.error(
         { memberId: agent.id, taskId: task.id, err },
@@ -663,13 +687,12 @@ ${goalSummary}${ideaContext}${existingContext}
       `Leader heartbeat created ${created.length} tasks (${todoCount} todo, ${backlogCount} backlog)`,
     );
 
-    publishLiveEvent(agent.companyId, {
+    this.publishAndLog(agent.companyId, {
       type: "activity",
       agentName: "팀장",
       agentRole: "leader",
       message: `${created.length}개의 작업을 생성했어요`,
-      timestamp: new Date().toISOString(),
-    });
+    }, { agentId: agent.id, entityType: "project", entityId: project.id });
   }
 
   /**
@@ -839,13 +862,12 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
         `Hired specialist: ${specialistInfo.name} for "${task.title}"`,
       );
 
-      publishLiveEvent(agent.companyId, {
+      this.publishAndLog(agent.companyId, {
         type: "activity",
         agentName: "팀장",
         agentRole: "leader",
         message: `"${task.title}" 작업을 위해 ${specialistInfo.name}을(를) 고용했어요`,
-        timestamp: new Date().toISOString(),
-      });
+      }, { agentId: agent.id, entityType: "agent", entityId: newAgent?.id });
     }
   }
 
@@ -936,13 +958,12 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
         `Assigned task '${task.title}' to ${member.name}`,
       );
 
-      publishLiveEvent(agent.companyId, {
+      this.publishAndLog(agent.companyId, {
         type: "activity",
         agentName: "팀장",
         agentRole: "leader",
         message: `"${task.title}" 작업을 ${member.name}에게 배정했어요`,
-        timestamp: new Date().toISOString(),
-      });
+      }, { agentId: agent.id, entityType: "issue", entityId: task.id });
 
       assignedMemberIds.push(member.id);
       assignedCount++;

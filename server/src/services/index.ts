@@ -70,6 +70,7 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
   const budget = new BudgetService(deps, cost.getWindowSpend.bind(cost));
   const dashboard = new DashboardService(deps, cost.getWindowSpend.bind(cost), budget);
   const secret = new SecretService(deps);
+  const activityLogService = new ActivityLogService(deps);
   const heartbeat = new HeartbeatService(deps);
   const autonomyConfig = new AutonomyConfigService(deps);
   const approval = new ApprovalService(deps);
@@ -77,6 +78,7 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
   heartbeat.setSecretService(secret);
   heartbeat.setAutonomyConfig(autonomyConfig);
   heartbeat.setApprovalService(approval);
+  heartbeat.setActivityLog(activityLogService);
 
   return {
     idea: new IdeaService(deps),
@@ -85,7 +87,7 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     goal: new GoalService(deps),
     issue: new IssueService(deps),
     project: new ProjectService(deps),
-    activityLog: new ActivityLogService(deps),
+    activityLog: activityLogService,
     heartbeat,
     progressReporter: new ProgressReporter(),
     errorTranslator: new ErrorTranslator(),

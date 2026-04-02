@@ -8,6 +8,7 @@ import { createApp } from "./app.js";
 import { initDatabase } from "./services/database.js";
 import { createServiceContainer } from "./services/index.js";
 import { setupWebSocketServer } from "./ws/websocket-server.js";
+import { initTaskOutputStore } from "./lib/task-output-store.js";
 
 async function main() {
   const config = loadConfig();
@@ -36,6 +37,7 @@ async function main() {
   const { db, cleanup: dbCleanup } = await initDatabase(config, logger);
   logger.info("Database initialized");
 
+  initTaskOutputStore(db);
   const services = createServiceContainer({ db, config, logger });
 
   const app = createApp({ config, db, logger, services });
