@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { queryKeys } from "@/api/queryKeys";
@@ -23,6 +23,8 @@ import {
   Clock,
   AlertTriangle,
   Terminal,
+  Code,
+  ChevronRight,
 } from "lucide-react";
 
 export default function TaskDetail() {
@@ -215,38 +217,38 @@ function LiveTaskOutput({
   taskId: string;
 }) {
   const [output, setOutput] = useState("");
-  const containerRef = useRef<HTMLPreElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
-  // Track if user has scrolled up
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    shouldAutoScroll.current = isAtBottom;
+    shouldAutoScroll.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // Fetch accumulated output on mount
   useEffect(() => {
-    getTaskOutput(projectId, taskId).then((data) => {
-      if (data.output) setOutput(data.output);
-    }).catch(() => {});
+    getTaskOutput(projectId, taskId)
+      .then((data) => {
+        if (data.output) setOutput(data.output);
+      })
+      .catch(() => {});
   }, [projectId, taskId]);
 
-  // Listen for streaming chunks via WebSocket
   useEffect(() => {
     const handler = (e: Event) => {
-      const data = JSON.parse((e as MessageEvent).data) as Record<string, unknown>;
+      const data = JSON.parse((e as MessageEvent).data) as Record<
+        string,
+        unknown
+      >;
       if (data["type"] === "task:output" && data["taskId"] === taskId) {
         setOutput((prev) => prev + (data["chunk"] as string));
       }
     };
-
     window.addEventListener("letro-ws-message", handler);
     return () => window.removeEventListener("letro-ws-message", handler);
   }, [taskId]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (shouldAutoScroll.current && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -269,16 +271,134 @@ function LiveTaskOutput({
         </span>
       </div>
 
-      <pre
+      <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="max-h-[480px] overflow-y-auto rounded-xl border border-[var(--border-default)] bg-gray-950 p-4 text-sm text-gray-200 font-mono leading-relaxed whitespace-pre-wrap break-words"
+        className="max-h-[480px] overflow-y-auto rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] p-4 space-y-2 text-sm text-[var(--text-primary)] leading-relaxed"
       >
-        {output || (
-          <span className="text-gray-500">팀원이 작업을 준비하고 있어요...</span>
+        {output ? (
+          <RefinedOutput text={output} />
+        ) : (
+          <span className="text-[var(--text-muted)]">
+            팀원이 작업을 준비하고 있어요...
+          </span>
         )}
-      </pre>
+      </div>
     </section>
+  );
+}
+
+/* ── Refined Output ────────────────────────────────────────────── */
+
+/**
+ * Parses raw Claude output and renders it with code blocks collapsed.
+ * Text is shown normally; code/JSON blocks become expandable summaries.
+ */
+function RefinedOutput({ text }: { text: string }) {
+  const segments = useMemo(() => parseOutputSegments(text), [text]);
+
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "text" ? (
+          <p key={i} className="whitespace-pre-wrap break-words">
+            {seg.content}
+          </p>
+        ) : (
+          <CollapsedCodeBlock
+            key={i}
+            lang={seg.lang}
+            content={seg.content}
+            lineCount={seg.lineCount}
+          />
+        ),
+      )}
+    </>
+  );
+}
+
+type Segment =
+  | { type: "text"; content: string }
+  | { type: "code"; lang: string; content: string; lineCount: number };
+
+function parseOutputSegments(raw: string): Segment[] {
+  const segments: Segment[] = [];
+  const codeBlockRe = /```(\w*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRe.exec(raw)) !== null) {
+    const textBefore = raw.slice(lastIndex, match.index).trim();
+    if (textBefore) {
+      segments.push({ type: "text", content: textBefore });
+    }
+
+    const lang = match[1] || "code";
+    const code = match[2]!;
+    const lineCount = code.split("\n").filter((l) => l.trim()).length;
+    segments.push({ type: "code", lang, content: code, lineCount });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text (or incomplete code block still streaming)
+  const remaining = raw.slice(lastIndex).trim();
+  if (remaining) {
+    // If it starts with ``` it's an incomplete code block being streamed
+    if (remaining.startsWith("```")) {
+      const firstNewline = remaining.indexOf("\n");
+      const lang = firstNewline > 3 ? remaining.slice(3, firstNewline) : "code";
+      const partial = firstNewline > 0 ? remaining.slice(firstNewline + 1) : "";
+      const lineCount = partial.split("\n").filter((l) => l.trim()).length;
+      segments.push({ type: "code", lang, content: partial, lineCount });
+    } else {
+      segments.push({ type: "text", content: remaining });
+    }
+  }
+
+  return segments;
+}
+
+function CollapsedCodeBlock({
+  lang,
+  content,
+  lineCount,
+}: {
+  lang: string;
+  content: string;
+  lineCount: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const preview = content.split("\n").find((l) => l.trim())?.trim().slice(0, 60) || "";
+
+  return (
+    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-[var(--bg-hover)] transition-colors"
+      >
+        <ChevronRight
+          className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+        <Code className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+        <span className="font-medium text-[var(--text-secondary)]">
+          {lang}
+        </span>
+        <span className="text-[var(--text-muted)] truncate flex-1">
+          {preview}{preview.length >= 60 ? "..." : ""}
+        </span>
+        <span className="text-[var(--text-muted)] shrink-0">
+          {lineCount}줄
+        </span>
+      </button>
+      {open && (
+        <pre className="px-3 py-2 border-t border-[var(--border-default)] bg-gray-950 text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+          {content}
+        </pre>
+      )}
+    </div>
   );
 }
 
