@@ -53,6 +53,7 @@ export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
 export function callLLMStreaming(
   options: LLMCallOptions,
   onChunk: (chunk: string) => void,
+  spawnOptions?: { cwd?: string },
 ): Promise<LLMResponse> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -61,6 +62,12 @@ export function callLLMStreaming(
       "--verbose",
       "--include-partial-messages",
     ];
+
+    // When running in a workspace, enable file creation
+    if (spawnOptions?.cwd) {
+      args.push("--dangerously-skip-permissions");
+    }
+
     const model = options.model ?? "sonnet";
     args.push("--model", model);
 
@@ -71,8 +78,9 @@ export function callLLMStreaming(
     args.push(options.prompt);
 
     const child = spawn("claude", args, {
-      timeout: 300_000,
+      timeout: 600_000, // 10 min for actual code generation
       stdio: ["ignore", "pipe", "pipe"],
+      cwd: spawnOptions?.cwd,
     });
 
     let fullText = "";

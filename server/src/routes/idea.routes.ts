@@ -48,6 +48,14 @@ ideaRoutes.post("/ideas/:id/activate", async (c) => {
   const userId = actor.kind === "user" ? actor.userId : "local-user";
   const project = await services.idea.activate(c.req.param("id"), userId);
 
+  // Create workspace directory for the project
+  const companyId = getCompanyId(actor);
+  services.workspace
+    .createForProject(companyId, project.id)
+    .catch((err: unknown) => {
+      c.get("logger").error({ projectId: project.id, err }, "Workspace creation failed");
+    });
+
   // Fire-and-forget: trigger leader's first heartbeat to start creating tasks
   services.heartbeat
     .executeHeartbeat(project.leaderAgentId)

@@ -27,6 +27,9 @@ const configSchema = z.object({
     .transform((v) => v === "true")
     .default("true"),
 
+  // Workspaces
+  workspacesDir: z.string().default("./workspaces"),
+
   // Extensions
   redisUrl: z.string().optional(),
   storageDir: z.string().default("./storage"),
@@ -50,6 +53,7 @@ export function loadConfig(): Config {
     defaultAutonomyLevel: process.env["DEFAULT_AUTONOMY_LEVEL"],
     logLevel: process.env["LOG_LEVEL"],
     logPretty: process.env["LOG_PRETTY"],
+    workspacesDir: process.env["WORKSPACES_DIR"],
     redisUrl: process.env["REDIS_URL"],
     storageDir: process.env["STORAGE_DIR"],
     secretsEncryptionKey: process.env["SECRETS_ENCRYPTION_KEY"],

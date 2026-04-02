@@ -1,5 +1,7 @@
 // server/src/index.ts
 import { serve } from "@hono/node-server";
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 import pino from "pino";
 import { loadConfig } from "./config.js";
 import { createApp } from "./app.js";
@@ -25,6 +27,11 @@ async function main() {
   });
 
   logger.info({ mode: config.letroMode, auth: config.authMode }, "Starting Letro server...");
+
+  // Ensure workspaces root directory exists
+  const workspacesRoot = resolve(config.workspacesDir);
+  mkdirSync(workspacesRoot, { recursive: true });
+  logger.info({ workspacesDir: workspacesRoot }, "Workspaces directory ready");
 
   const { db, cleanup: dbCleanup } = await initDatabase(config, logger);
   logger.info("Database initialized");

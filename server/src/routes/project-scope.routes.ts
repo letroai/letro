@@ -208,12 +208,29 @@ projectScopeRoutes.get("/projects/:projectId/activity", async (c) => {
 
 // GET /api/projects/:projectId/results/tree
 projectScopeRoutes.get("/projects/:projectId/results/tree", async (c) => {
-  return c.json({ name: "root", path: "/", type: "directory", children: [] });
+  const projectId = c.req.param("projectId");
+  const services = c.get("services");
+  try {
+    const tree = await services.workspace.getFileTree(projectId);
+    return c.json(tree);
+  } catch {
+    return c.json({ name: "root", path: "/", type: "directory", children: [] });
+  }
 });
 
 // GET /api/projects/:projectId/results/file
 projectScopeRoutes.get("/projects/:projectId/results/file", async (c) => {
-  return c.json({ path: "", content: "", language: "text" });
+  const projectId = c.req.param("projectId");
+  const filePath = c.req.query("path");
+  if (!filePath) return c.json({ message: "path required" }, 400);
+
+  const services = c.get("services");
+  try {
+    const content = await services.workspace.getFileContent(projectId, filePath);
+    return c.json(content);
+  } catch {
+    return c.json({ path: filePath, content: "", language: "text", size: 0 }, 404);
+  }
 });
 
 // GET /api/projects/:projectId/work-style

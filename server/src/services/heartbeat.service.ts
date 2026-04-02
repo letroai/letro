@@ -12,11 +12,13 @@ import {
   userIdeas,
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
+import type { WorkspaceService } from "./workspace.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
+import { executionWorkspaces } from "@letro/db/schema";
 
 /**
  * Heartbeat service — Letro's core execution engine.
@@ -32,10 +34,17 @@ import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
 export class HeartbeatService {
   private db;
   private logger;
+  private config;
+  private workspaceService?: WorkspaceService;
 
   constructor(deps: ServiceDependencies) {
     this.db = deps.db;
     this.logger = deps.logger;
+    this.config = deps.config;
+  }
+
+  setWorkspaceService(ws: WorkspaceService) {
+    this.workspaceService = ws;
   }
 
   /**
@@ -333,24 +342,24 @@ export class HeartbeatService {
       timestamp: new Date().toISOString(),
     });
 
-    // 2. Call Claude CLI to "execute" the task (with real-time streaming)
+    // 2. Look up workspace for actual file creation
+    const workspace = this.workspaceService
+      ? await this.workspaceService.getByProjectId(task.projectId!)
+      : null;
+
+    // 3. Execute task via Claude CLI in workspace (or fallback to LLM-only)
     try {
       clearTaskOutput(task.id);
 
-      const response = await callLLMStreaming({
-        system: agent.systemPrompt ?? `You are ${agent.name}, a software developer.`,
-        prompt: `You are working on the following task. Analyze it carefully based on your expertise and describe what you would implement.
+      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer working on a real project. Create actual files and code.`;
+      const taskPrompt = `You are working on the following task. Implement it by creating/editing actual files in the current working directory.
 
 Task: ${task.title}
 Description: ${task.description ?? "No additional details"}
 
-Respond with a JSON object:
-{
-  "summary": "Brief description of what was implemented (2-3 sentences)",
-  "details": "Technical details of the approach",
-  "completed": true
-}`,
-      }, (chunk) => {
+Create real files with working code. When done, provide a brief summary of what you created.`;
+
+      const onChunk = (chunk: string) => {
         appendTaskOutput(task.id, chunk);
         publishLiveEvent(agent.companyId, {
           type: "task:output",
@@ -358,72 +367,73 @@ Respond with a JSON object:
           agentId: agent.id,
           chunk,
         });
-      });
+      };
 
-      // 3. Parse Claude's response
-      let result: { summary: string; completed: boolean };
+      let summary: string;
+
+      if (workspace) {
+        // Execute in workspace with full file creation capabilities
+        const response = await callLLMStreaming({
+          system: systemPrompt,
+          prompt: taskPrompt,
+        }, onChunk, { cwd: workspace.path });
+
+        summary = response.content.slice(0, 2000);
+      } else {
+        // Fallback: LLM-only mode (no workspace)
+        const response = await callLLMStreaming({
+          system: systemPrompt,
+          prompt: taskPrompt,
+        }, onChunk);
+
+        summary = response.content.slice(0, 2000);
+      }
+
+      // 4. Mark task done
+      const now = new Date();
+      await this.db
+        .update(issues)
+        .set(omitUndefined({
+          status: "done",
+          checkedOutBy: null,
+          checkedOutAt: null,
+          updatedAt: now,
+        }))
+        .where(eq(issues.id, task.id));
+
+      await this.db
+        .update(agents)
+        .set(omitUndefined({ status: "idle", updatedAt: now }))
+        .where(eq(agents.id, agent.id));
+
+      // Save completion result as a comment
       try {
-        result = JSON.parse(response.content);
-      } catch {
-        this.logger.warn(
-          { memberId: agent.id, taskId: task.id, raw: response.content },
-          "Failed to parse member LLM response as JSON, treating as completed",
-        );
-        result = { summary: response.content.slice(0, 500), completed: true };
-      }
-
-      // 4. If completed, mark task done and member idle
-      if (result.completed) {
-        const now = new Date();
-        await this.db
-          .update(issues)
-          .set(omitUndefined({
-            status: "done",
-            checkedOutBy: null,
-            checkedOutAt: null,
-            updatedAt: now,
-          }))
-          .where(eq(issues.id, task.id));
-
-        await this.db
-          .update(agents)
-          .set(omitUndefined({ status: "idle", updatedAt: now }))
-          .where(eq(agents.id, agent.id));
-
-        // Save completion result as a comment on the task
-        try {
-          await this.db.insert(issueComments).values({
-            companyId: agent.companyId,
-            issueId: task.id,
-            body: result.summary,
-            createdByAgentId: agent.id,
-          });
-        } catch (commentErr) {
-          this.logger.error({ err: commentErr, taskId: task.id }, "Failed to save task result comment");
-        }
-
-        this.logger.info(
-          {
-            memberId: agent.id,
-            taskId: task.id,
-            taskTitle: task.title,
-            summary: result.summary,
-          },
-          `Member completed task: ${task.title}`,
-        );
-
-        publishLiveEvent(agent.companyId, {
-          type: "activity",
-          agentName: agent.name,
-          agentRole: "member",
-          message: `"${task.title}" 작업을 완료했어요`,
-          timestamp: new Date().toISOString(),
+        await this.db.insert(issueComments).values({
+          companyId: agent.companyId,
+          issueId: task.id,
+          body: summary.slice(0, 1000),
+          createdByAgentId: agent.id,
         });
+      } catch (commentErr) {
+        this.logger.error({ err: commentErr, taskId: task.id }, "Failed to save task result comment");
       }
+
+      this.logger.info(
+        { memberId: agent.id, taskId: task.id, taskTitle: task.title },
+        `Member completed task: ${task.title}`,
+      );
+
+      publishLiveEvent(agent.companyId, {
+        type: "activity",
+        agentName: agent.name,
+        agentRole: "member",
+        message: `"${task.title}" 작업을 완료했어요`,
+        timestamp: new Date().toISOString(),
+      });
     } catch (err) {
       this.logger.error(
         { memberId: agent.id, taskId: task.id, err },
-        "Member task execution via LLM failed, will retry on next heartbeat",
+        "Member task execution failed, will retry on next heartbeat",
       );
     }
 

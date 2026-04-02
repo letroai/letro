@@ -23,6 +23,7 @@ import { BudgetService } from "./budget.service.js";
 import { CostAnomalyDetector } from "./autonomy/cost-anomaly-detector.js";
 import { PeerReviewEngine } from "./autonomy/peer-review-engine.js";
 import { DashboardService } from "./dashboard.service.js";
+import { WorkspaceService } from "./workspace.service.js";
 
 export interface ServiceContainer {
   idea: IdeaService;
@@ -46,6 +47,7 @@ export interface ServiceContainer {
   costAnomalyDetector: CostAnomalyDetector;
   peerReviewEngine: PeerReviewEngine;
   dashboard: DashboardService;
+  workspace: WorkspaceService;
 }
 
 export interface ServiceDependencies {
@@ -55,9 +57,12 @@ export interface ServiceDependencies {
 }
 
 export function createServiceContainer(deps: ServiceDependencies): ServiceContainer {
+  const workspace = new WorkspaceService(deps);
   const cost = new CostService(deps);
   const budget = new BudgetService(deps, cost.getWindowSpend.bind(cost));
   const dashboard = new DashboardService(deps, cost.getWindowSpend.bind(cost), budget);
+  const heartbeat = new HeartbeatService(deps);
+  heartbeat.setWorkspaceService(workspace);
 
   return {
     idea: new IdeaService(deps),
@@ -67,7 +72,7 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     issue: new IssueService(deps),
     project: new ProjectService(deps),
     activityLog: new ActivityLogService(deps),
-    heartbeat: new HeartbeatService(deps),
+    heartbeat,
     progressReporter: new ProgressReporter(),
     errorTranslator: new ErrorTranslator(),
     taskDecomposition: new TaskDecompositionEngine(deps),
@@ -81,5 +86,6 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     costAnomalyDetector: new CostAnomalyDetector(deps),
     peerReviewEngine: new PeerReviewEngine(deps),
     dashboard,
+    workspace,
   };
 }
