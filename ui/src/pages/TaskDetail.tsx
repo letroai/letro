@@ -135,9 +135,9 @@ export default function TaskDetail() {
           </div>
         </div>
 
-        {/* Live Output (only when task is in progress) */}
-        {isInProgress && (
-          <LiveTaskOutput projectId={projectId!} taskId={taskId!} />
+        {/* Task Output — live when in progress, persisted when done */}
+        {(isInProgress || task.status === "done") && (
+          <TaskOutput projectId={projectId!} taskId={taskId!} isLive={isInProgress} />
         )}
 
         {/* Comment Thread */}
@@ -207,14 +207,16 @@ export default function TaskDetail() {
   );
 }
 
-/* ── Live Task Output ──────────────────────────────────────────── */
+/* ── Task Output (live or persisted) ───────────────────────────── */
 
-function LiveTaskOutput({
+function TaskOutput({
   projectId,
   taskId,
+  isLive,
 }: {
   projectId: string;
   taskId: string;
+  isLive: boolean;
 }) {
   const [output, setOutput] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -227,6 +229,7 @@ function LiveTaskOutput({
       el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
+  // Load output from server (in-memory buffer or DB)
   useEffect(() => {
     getTaskOutput(projectId, taskId)
       .then((data) => {
@@ -235,19 +238,18 @@ function LiveTaskOutput({
       .catch(() => {});
   }, [projectId, taskId]);
 
+  // Subscribe to live streaming chunks (only when in progress)
   useEffect(() => {
+    if (!isLive) return;
     const handler = (e: Event) => {
-      const data = JSON.parse((e as MessageEvent).data) as Record<
-        string,
-        unknown
-      >;
+      const data = JSON.parse((e as MessageEvent).data) as Record<string, unknown>;
       if (data["type"] === "task:output" && data["taskId"] === taskId) {
         setOutput((prev) => prev + (data["chunk"] as string));
       }
     };
     window.addEventListener("letro-ws-message", handler);
     return () => window.removeEventListener("letro-ws-message", handler);
-  }, [taskId]);
+  }, [taskId, isLive]);
 
   useEffect(() => {
     if (shouldAutoScroll.current && containerRef.current) {
@@ -260,15 +262,17 @@ function LiveTaskOutput({
       <div className="flex items-center gap-2">
         <Terminal className="w-4 h-4 text-[var(--text-muted)]" />
         <h3 className="text-base font-semibold text-[var(--text-primary)]">
-          실시간 작업 출력
+          {isLive ? "실시간 작업 출력" : "작업 내역"}
         </h3>
-        <span className="inline-flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
+        {isLive && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
+            </span>
+            진행 중
           </span>
-          진행 중
-        </span>
+        )}
       </div>
 
       <div
@@ -280,7 +284,7 @@ function LiveTaskOutput({
           <RefinedOutput text={output} />
         ) : (
           <span className="text-[var(--text-muted)]">
-            팀원이 작업을 준비하고 있어요...
+            {isLive ? "팀원이 작업을 준비하고 있어요..." : "작업 내역이 없어요."}
           </span>
         )}
       </div>

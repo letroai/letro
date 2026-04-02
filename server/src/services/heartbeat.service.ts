@@ -21,7 +21,7 @@ import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS, MAX_TOTAL_PENDING_TASKS } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
-import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
+import { appendTaskOutput, clearTaskOutput, getTaskOutput } from "../lib/task-output-store.js";
 import { executionWorkspaces } from "@letro/db/schema";
 
 /**
@@ -498,12 +498,21 @@ After creating all files:
         .set(omitUndefined({ status: "idle", updatedAt: now }))
         .where(eq(agents.id, agent.id));
 
-      // Save completion result as a comment
+      // Save full work log + summary as comments
       try {
+        const fullOutput = getTaskOutput(task.id);
+        if (fullOutput) {
+          await this.db.insert(issueComments).values({
+            companyId: agent.companyId,
+            issueId: task.id,
+            body: `📋 작업 내역\n\n${fullOutput.slice(0, 4000)}`,
+            createdByAgentId: agent.id,
+          });
+        }
         await this.db.insert(issueComments).values({
           companyId: agent.companyId,
           issueId: task.id,
-          body: summary.slice(0, 1000),
+          body: `✅ 작업 결과\n\n${summary.slice(0, 2000)}`,
           createdByAgentId: agent.id,
         });
       } catch (commentErr) {
