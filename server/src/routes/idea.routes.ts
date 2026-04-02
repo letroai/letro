@@ -51,7 +51,7 @@ ideaRoutes.post("/ideas/:id/activate", async (c) => {
   // Create workspace directory for the project
   const companyId = getCompanyId(actor);
   services.workspace
-    .createForProject(companyId, project.id)
+    .createForProject(companyId, project.id, project.name, project.description ?? undefined)
     .catch((err: unknown) => {
       c.get("logger").error({ projectId: project.id, err }, "Workspace creation failed");
     });

@@ -59,19 +59,53 @@ export class WorkspaceService {
   }
 
   /** Creates workspace directory and DB record for a project. */
-  async createForProject(companyId: string, projectId: string): Promise<{ id: string; path: string }> {
+  async createForProject(companyId: string, projectId: string, projectName?: string, projectDescription?: string): Promise<{ id: string; path: string }> {
     const wsPath = resolve(this.config.workspacesDir, projectId);
     await mkdir(wsPath, { recursive: true });
 
-    // Write a CLAUDE.md to constrain agent behavior within this workspace
+    // Write CLAUDE.md to constrain agent behavior within this workspace
     const claudeMd = `# Workspace Rules
 
-- This is the project workspace. ALL files must be created here.
-- Use RELATIVE paths only (e.g., "src/app.ts", not "/home/.../app.ts").
-- Do NOT create files outside this directory.
-- Do NOT modify files in parent directories.
+## 필수 규칙
+- ALL files must be created in this directory. Use RELATIVE paths only.
+- Do NOT create files outside this directory or modify parent directories.
+
+## 진행 현황 문서 → [PROGRESS.md](PROGRESS.md)
+- **작업 시작 전**: PROGRESS.md를 반드시 읽고 현재 상태를 파악하세요.
+- **작업 완료 후**: PROGRESS.md를 반드시 업데이트하세요.
+  - 완료된 작업 섹션에 자신의 작업 내용 추가
+  - 파일 구조 섹션 업데이트
+  - 아키텍처 결정사항이 있으면 기록
 `;
     await writeFile(join(wsPath, "CLAUDE.md"), claudeMd, "utf-8");
+
+    // Write PROGRESS.md — the living document that tracks project progress
+    const progressMd = `# ${projectName ?? "프로젝트"} 진행 현황
+
+## 프로젝트 목표
+${projectDescription ?? "(아직 정의되지 않음)"}
+
+## 현재 상태
+- 프로젝트 시작됨
+- 아직 완료된 작업 없음
+
+## 완료된 작업
+
+(없음)
+
+## 진행 중인 작업
+
+(없음)
+
+## 아키텍처 결정사항
+
+(아직 없음)
+
+## 파일 구조
+
+(아직 생성된 파일 없음)
+`;
+    await writeFile(join(wsPath, "PROGRESS.md"), progressMd, "utf-8");
 
     const [ws] = await this.db
       .insert(executionWorkspaces)

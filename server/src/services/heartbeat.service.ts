@@ -446,14 +446,20 @@ CRITICAL RULES:
 - Your working directory is: ${workspace.path}
 - ALL files MUST be created inside this directory. NEVER write files outside it.
 - Use relative paths (e.g., "src/app.ts") not absolute paths.
-- Do NOT just describe what you would do — actually create the files.`;
+- Do NOT just describe what you would do — actually create the files.
+- Before starting, READ "PROGRESS.md" to understand current project state.
+- After finishing, UPDATE "PROGRESS.md" with what you built.`;
 
-      const taskPrompt = `Implement the following task. Create real files in the current directory using the Write tool. Use relative paths only.
+      const taskPrompt = `First, read PROGRESS.md to understand the current project state.
+
+Then implement the following task by creating real files:
 
 Task: ${task.title}
 Description: ${task.description ?? "No additional details"}
 
-After creating all files, write a one-paragraph summary of what you built.`;
+After creating all files:
+1. Update PROGRESS.md — add your work to "완료된 작업", update "파일 구조", add any architecture decisions.
+2. Write a one-paragraph summary of what you built.`;
 
       const onChunk = (chunk: string) => {
         appendTaskOutput(task.id, chunk);
@@ -556,6 +562,20 @@ After creating all files, write a one-paragraph summary of what you built.`;
     ideaStructured: Record<string, unknown> | null,
     maxNew: number,
   ) {
+    // Read workspace PROGRESS.md for context
+    let progressContext = "";
+    if (this.workspaceService) {
+      const ws = await this.workspaceService.getByProjectId(project.id);
+      if (ws) {
+        try {
+          const { readFile } = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const progressMd = await readFile(join(ws.path, "PROGRESS.md"), "utf-8");
+          progressContext = `\n\n현재 프로젝트 진행 현황 (PROGRESS.md):\n${progressMd.slice(0, 2000)}`;
+        } catch { /* PROGRESS.md doesn't exist yet, skip */ }
+      }
+    }
+
     // Find existing issues to avoid duplicates and to inform dependency decisions
     const existingIssues = await this.db
       .select({ title: issues.title, status: issues.status })
@@ -590,9 +610,14 @@ After creating all files, write a one-paragraph summary of what you built.`;
       });
     const currentMaxPhase = existingPhases.length > 0 ? Math.max(...existingPhases) : 0;
 
+    // Check if there are in-progress or backlog tasks that block new task creation
+    const hasBlockingTasks = existingIssues.some((i) =>
+      i.status === "in_progress" || i.status === "backlog",
+    );
+
     const prompt = `프로젝트 "${project.name}"의 팀장으로서 다음 목표를 달성하기 위한 구체적인 작업을 생성하세요.
 
-${goalSummary}${ideaContext}${existingContext}
+${goalSummary}${ideaContext}${existingContext}${progressContext}
 
 반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
 [
@@ -609,20 +634,23 @@ ${goalSummary}${ideaContext}${existingContext}
 - phase는 작업 실행 순서를 나타내는 숫자입니다
 - 같은 phase의 작업들은 동시에 병렬 실행됩니다
 - phase N+1의 작업은 phase N의 모든 작업이 완료된 후에만 시작됩니다
-- 현재 가장 높은 phase는 ${currentMaxPhase}입니다. 다음 작업의 phase는 ${currentMaxPhase + 1}부터 시작하세요
-- 예: phase 1 = 설계/기획, phase 2 = 핵심 구현, phase 3 = UI, phase 4 = 테스트/마무리
+- 현재 가장 높은 phase는 ${currentMaxPhase}입니다
+
+■ 핵심 원칙 — 지금 바로 실행 가능한 작업만 생성:
+- 현재 진행 중이거나 대기 중인 작업이 있으면, 그 작업의 결과가 필요한 후속 작업은 만들지 마세요
+- 즉시 병렬로 실행할 수 있는 작업만 생성하세요
+- 병렬 가능한 작업이 없으면 빈 배열 []을 반환하세요 (무리하게 만들지 마세요)
+${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업이 있습니다. 이 작업들과 독립적으로 병렬 실행 가능한 작업만 생성하세요." : ""}
 
 ■ 의존성 규칙:
 - depends_on: 같은 phase 안에서도 특정 작업이 먼저 완료되어야 하면 해당 작업의 제목을 넣으세요
-- 다른 phase 의존성은 phase 번호가 자동으로 관리하므로, 같은 phase 내 의존성만 명시하세요
-- 의존성이 없으면 빈 배열 []
+- 다른 phase 의존성은 phase 번호가 자동 관리
 
 ■ 기타 규칙:
-- 최대 ${maxNew}개의 작업만 생성
-- 이미 존재하는 작업과 중복 금지
-- 각 작업은 한 명의 팀원이 독립 수행 가능해야 함
+- 최대 ${maxNew}개, 중복 금지
+- 각 작업은 한 명이 독립 수행 가능해야 함
 - 우선순위: "critical", "high", "medium", "low"
-- 먼 미래 작업 금지 — 바로 다음 1~2 단계만`;
+- PROGRESS.md의 현재 상태를 참고하여 다음에 필요한 작업만 생성하세요`;
 
     let tasksToCreate: Array<{
       title: string;
