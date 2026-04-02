@@ -13,6 +13,7 @@ import {
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
 import type { WorkspaceService } from "./workspace.service.js";
+import type { SecretService } from "./secret.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
@@ -36,6 +37,7 @@ export class HeartbeatService {
   private logger;
   private config;
   private workspaceService?: WorkspaceService;
+  private secretService?: SecretService;
 
   constructor(deps: ServiceDependencies) {
     this.db = deps.db;
@@ -45,6 +47,10 @@ export class HeartbeatService {
 
   setWorkspaceService(ws: WorkspaceService) {
     this.workspaceService = ws;
+  }
+
+  setSecretService(ss: SecretService) {
+    this.secretService = ss;
   }
 
   /**
@@ -342,10 +348,14 @@ export class HeartbeatService {
       timestamp: new Date().toISOString(),
     });
 
-    // 2. Look up workspace for actual file creation
+    // 2. Look up workspace and resolve secrets
     const workspace = this.workspaceService
       ? await this.workspaceService.getByProjectId(task.projectId!)
       : null;
+
+    const secretEnv = this.secretService
+      ? await this.secretService.resolveEnvBindings(agent.companyId)
+      : {};
 
     // 3. Execute task via Claude CLI in workspace (or fallback to LLM-only)
     try {
@@ -369,10 +379,14 @@ Create real files with working code. When done, provide a brief summary of what 
         });
       };
 
+      const hasSecrets = Object.keys(secretEnv).length > 0;
+      const opts: { cwd?: string; env?: Record<string, string> } = {};
+      if (workspace) opts.cwd = workspace.path;
+      if (hasSecrets) opts.env = secretEnv;
       const response = await callLLMStreaming(
         { system: systemPrompt, prompt: taskPrompt },
         onChunk,
-        workspace ? { cwd: workspace.path } : undefined,
+        (workspace || hasSecrets) ? opts : undefined,
       );
       const summary = response.content.slice(0, 2000);
 

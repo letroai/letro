@@ -53,7 +53,7 @@ export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
 export function callLLMStreaming(
   options: LLMCallOptions,
   onChunk: (chunk: string) => void,
-  spawnOptions?: { cwd?: string },
+  spawnOptions?: { cwd?: string; env?: Record<string, string> },
 ): Promise<LLMResponse> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -81,6 +81,9 @@ export function callLLMStreaming(
       timeout: 600_000, // 10 min for actual code generation
       stdio: ["ignore", "pipe", "pipe"],
       cwd: spawnOptions?.cwd,
+      env: spawnOptions?.env
+        ? { ...process.env, ...spawnOptions.env }
+        : undefined,
     });
 
     let fullText = "";

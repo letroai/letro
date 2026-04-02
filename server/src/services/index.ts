@@ -24,6 +24,7 @@ import { CostAnomalyDetector } from "./autonomy/cost-anomaly-detector.js";
 import { PeerReviewEngine } from "./autonomy/peer-review-engine.js";
 import { DashboardService } from "./dashboard.service.js";
 import { WorkspaceService } from "./workspace.service.js";
+import { SecretService } from "./secret.service.js";
 
 export interface ServiceContainer {
   idea: IdeaService;
@@ -48,6 +49,7 @@ export interface ServiceContainer {
   peerReviewEngine: PeerReviewEngine;
   dashboard: DashboardService;
   workspace: WorkspaceService;
+  secret: SecretService;
 }
 
 export interface ServiceDependencies {
@@ -61,8 +63,10 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
   const cost = new CostService(deps);
   const budget = new BudgetService(deps, cost.getWindowSpend.bind(cost));
   const dashboard = new DashboardService(deps, cost.getWindowSpend.bind(cost), budget);
+  const secret = new SecretService(deps);
   const heartbeat = new HeartbeatService(deps);
   heartbeat.setWorkspaceService(workspace);
+  heartbeat.setSecretService(secret);
 
   return {
     idea: new IdeaService(deps),
@@ -87,5 +91,6 @@ export function createServiceContainer(deps: ServiceDependencies): ServiceContai
     peerReviewEngine: new PeerReviewEngine(deps),
     dashboard,
     workspace,
+    secret,
   };
 }
