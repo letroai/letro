@@ -144,25 +144,28 @@ export default function Tasks() {
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
+/** Maps internal statuses to display group keys so todo/backlog/open merge into one "waiting" group. */
+const STATUS_GROUP: Record<string, string> = {
+  in_progress: "in_progress",
+  in_review: "in_review",
+  review: "in_review",
+  todo: "waiting",
+  backlog: "waiting",
+  open: "waiting",
+  blocked: "blocked",
+  done: "done",
+  cancelled: "cancelled",
+};
+
 function groupByStatus(tasks: Task[]): [string, Task[]][] {
-  const order = [
-    "in_progress",
-    "in_review",
-    "review",
-    "todo",
-    "backlog",
-    "open",
-    "blocked",
-    "done",
-    "cancelled",
-  ];
+  const order = ["in_progress", "in_review", "waiting", "blocked", "done", "cancelled"];
   const map = new Map<string, Task[]>();
   for (const t of tasks) {
-    const list = map.get(t.status) ?? [];
+    const group = STATUS_GROUP[t.status] ?? t.status;
+    const list = map.get(group) ?? [];
     list.push(t);
-    map.set(t.status, list);
+    map.set(group, list);
   }
-  // Show groups in order, plus any unknown statuses at the end
   const result: [string, Task[]][] = [];
   for (const s of order) {
     if (map.has(s)) { result.push([s, map.get(s)!]); map.delete(s); }
@@ -173,11 +176,8 @@ function groupByStatus(tasks: Task[]): [string, Task[]][] {
 
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
-    open: "대기 중",
-    todo: "대기 중",
-    backlog: "대기 중",
+    waiting: "대기 중",
     in_progress: "진행 중",
-    review: "검토 중",
     in_review: "검토 중",
     done: "완료",
     cancelled: "취소",
