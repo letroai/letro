@@ -498,25 +498,53 @@ After creating all files:
         .set(omitUndefined({ status: "idle", updatedAt: now }))
         .where(eq(agents.id, agent.id));
 
-      // Save full work log + summary as comments
+      // Git commit in workspace + save commit message as comment
       try {
-        const fullOutput = getTaskOutput(task.id);
-        if (fullOutput) {
+        const { execFile: execFileCb } = await import("node:child_process");
+        const { promisify: promisifyFn } = await import("node:util");
+        const execFileAsync = promisifyFn(execFileCb);
+        const gitEnv = { ...process.env, GIT_AUTHOR_NAME: agent.name, GIT_AUTHOR_EMAIL: "agent@letro.local", GIT_COMMITTER_NAME: agent.name, GIT_COMMITTER_EMAIL: "agent@letro.local" };
+
+        const commitMsg = `${task.title}\n\n${summary.slice(0, 500)}`;
+
+        await execFileAsync("git", ["add", "-A"], { cwd: workspace.path });
+
+        // Check if there are changes to commit
+        const { stdout: statusOut } = await execFileAsync("git", ["status", "--porcelain"], { cwd: workspace.path });
+
+        if (statusOut.trim()) {
+          await execFileAsync("git", ["commit", "-m", commitMsg], { cwd: workspace.path, env: gitEnv });
+
+          const { stdout: commitHash } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: workspace.path });
+
           await this.db.insert(issueComments).values({
             companyId: agent.companyId,
             issueId: task.id,
-            body: `📋 작업 내역\n\n${fullOutput.slice(0, 4000)}`,
+            body: `📦 커밋 ${commitHash.trim()}: ${summary.slice(0, 500)}`,
+            createdByAgentId: agent.id,
+          });
+
+          this.logger.info({ taskId: task.id, commit: commitHash.trim() }, "Task committed to workspace git");
+        } else {
+          // No file changes, just save summary
+          await this.db.insert(issueComments).values({
+            companyId: agent.companyId,
+            issueId: task.id,
+            body: `✅ ${summary.slice(0, 500)}`,
             createdByAgentId: agent.id,
           });
         }
-        await this.db.insert(issueComments).values({
-          companyId: agent.companyId,
-          issueId: task.id,
-          body: `✅ 작업 결과\n\n${summary.slice(0, 2000)}`,
-          createdByAgentId: agent.id,
-        });
       } catch (commentErr) {
-        this.logger.error({ err: commentErr, taskId: task.id }, "Failed to save task result comment");
+        this.logger.error({ err: commentErr, taskId: task.id }, "Failed to commit/comment task result");
+        // Fallback: save summary without git
+        try {
+          await this.db.insert(issueComments).values({
+            companyId: agent.companyId,
+            issueId: task.id,
+            body: `✅ ${summary.slice(0, 500)}`,
+            createdByAgentId: agent.id,
+          });
+        } catch { /* ignore */ }
       }
 
       // Update goal progress based on completed tasks

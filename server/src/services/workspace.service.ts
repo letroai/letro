@@ -3,6 +3,10 @@ import { eq } from "drizzle-orm";
 import { executionWorkspaces } from "@letro/db/schema";
 import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { resolve, join, extname, relative } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 import type { ServiceDependencies } from "./index.js";
 
 export interface FileNode {
@@ -106,6 +110,19 @@ ${projectDescription ?? "(아직 정의되지 않음)"}
 (아직 생성된 파일 없음)
 `;
     await writeFile(join(wsPath, "PROGRESS.md"), progressMd, "utf-8");
+
+    // Initialize git repository
+    try {
+      await execFileAsync("git", ["init"], { cwd: wsPath });
+      await execFileAsync("git", ["add", "-A"], { cwd: wsPath });
+      await execFileAsync("git", ["commit", "-m", `Initial commit: ${projectName ?? "project"} workspace`], {
+        cwd: wsPath,
+        env: { ...process.env, GIT_AUTHOR_NAME: "Letro", GIT_AUTHOR_EMAIL: "letro@local", GIT_COMMITTER_NAME: "Letro", GIT_COMMITTER_EMAIL: "letro@local" },
+      });
+      this.logger.info({ projectId }, "Git repository initialized in workspace");
+    } catch (err) {
+      this.logger.warn({ projectId, err }, "Git init failed (non-fatal)");
+    }
 
     const [ws] = await this.db
       .insert(executionWorkspaces)
