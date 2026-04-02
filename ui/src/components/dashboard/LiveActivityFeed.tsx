@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Star, User } from "lucide-react";
 import { api } from "@/api/client";
+import { useLocale } from "@/providers/LocaleProvider";
 
 interface ActivityEvent {
   agentName: string;
@@ -31,6 +32,7 @@ function dbToEvent(n: DBNotification): ActivityEvent | null {
 }
 
 export function LiveActivityFeed() {
+  const { locale, t } = useLocale();
   const [liveEvents, setLiveEvents] = useState<ActivityEvent[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastDbFetchRef = useRef(0);
@@ -88,10 +90,10 @@ export function LiveActivityFeed() {
     return (
       <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
         <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">
-          활동 내역
+          {t("activity.title")}
         </h3>
         <p className="text-xs text-[var(--text-muted)]">
-          팀이 작업을 시작하면 여기에 나타나요...
+          {t("activity.empty")}
         </p>
       </div>
     );
@@ -102,15 +104,15 @@ export function LiveActivityFeed() {
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full bg-success-500 animate-pulse" />
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          활동 내역
+          {t("activity.title")}
         </h3>
         <span className="text-xs text-[var(--text-muted)]">
-          {allEvents.length}개
+          {allEvents.length}
         </span>
       </div>
       <div className="max-h-64 overflow-y-auto space-y-2">
         {allEvents.map((event, i) => {
-          const time = new Date(event.timestamp).toLocaleTimeString("ko-KR", {
+          const time = new Date(event.timestamp).toLocaleTimeString(locale === "ko" ? "ko-KR" : "en-US", {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",

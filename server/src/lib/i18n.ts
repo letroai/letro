@@ -14,6 +14,9 @@ export function detectLocale(text: string): Locale {
 
 /** All translatable strings used during project execution. */
 const messages = {
+  // Agent names
+  leaderName: { ko: "팀장", en: "Team Leader" },
+
   // PROGRESS.md
   progressTitle: { ko: "진행 현황", en: "Progress" },
   progressGoal: { ko: "프로젝트 목표", en: "Project Goal" },

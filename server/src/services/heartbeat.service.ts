@@ -235,6 +235,8 @@ export class HeartbeatService {
       return;
     }
 
+    const locale = await this.getProjectLocale(project.id);
+
     // 2. Find linked goals
     const goalLinks = await this.db
       .select()
@@ -604,6 +606,8 @@ export class HeartbeatService {
     ideaStructured: Record<string, unknown> | null,
     maxNew: number,
   ) {
+    const locale = await this.getProjectLocale(project.id);
+
     // Read workspace PROGRESS.md for context
     let progressContext = "";
     if (this.workspaceService) {
@@ -815,7 +819,7 @@ ${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업�
 
     this.publishAndLog(agent.companyId, {
       type: "activity",
-      agentName: "팀장",
+      agentName: ts("leaderName", locale),
       agentRole: "leader",
       message: `${created.length}개의 작업을 생성했어요`,
     }, { agentId: agent.id, entityType: "project", entityId: project.id });
@@ -907,6 +911,7 @@ ${hasBlockingTasks ? "- ⚠️ 현재 진행 중이거나 대기 중인 작업�
     project: { id: string },
     ideaStructured: Record<string, unknown> | null,
   ) {
+    const locale = await this.getProjectLocale(project.id);
     const MAX_TEAM_MEMBERS = 5;
 
     // Check if project already has team members (non-leader agents)
@@ -1014,7 +1019,7 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
 
       this.publishAndLog(agent.companyId, {
         type: "activity",
-        agentName: "팀장",
+        agentName: ts("leaderName", locale),
         agentRole: "leader",
         message: `"${task.title}" 작업을 위해 ${specialistInfo.name}을(를) 고용했어요`,
       }, { agentId: agent.id, entityType: "agent", entityId: newAgent?.id });
@@ -1031,6 +1036,8 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
     agent: { id: string; companyId: string },
     project: { id: string },
   ) {
+    const locale = await this.getProjectLocale(project.id);
+
     // Query unassigned tasks (status = 'todo', no assignee)
     const unassignedTasks = await this.db
       .select()
@@ -1110,7 +1117,7 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
 
       this.publishAndLog(agent.companyId, {
         type: "activity",
-        agentName: "팀장",
+        agentName: ts("leaderName", locale),
         agentRole: "leader",
         message: `"${task.title}" 작업을 ${member.name}에게 배정했어요`,
       }, { agentId: agent.id, entityType: "issue", entityId: task.id });

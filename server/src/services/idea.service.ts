@@ -10,7 +10,7 @@ import {
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
 import { callLLM } from "../lib/llm-client.js";
-import { detectLocale } from "../lib/i18n.js";
+import { detectLocale, ts } from "../lib/i18n.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 
 /**
@@ -161,6 +161,9 @@ export class IdeaService {
 
     this.logger.info({ ideaId, userId }, "Idea activation started");
 
+    const detectedLang: "ko" | "en" = ((idea.structured as Record<string, unknown> | null)?.locale as "ko" | "en") ?? detectLocale(idea.rawText);
+    const leaderDisplayName = ts("leaderName", detectedLang);
+
     // Create project + leader + goal atomically in a transaction
     const result = await this.db.transaction(async (tx) => {
       // 1. Create leader agent
@@ -168,7 +171,7 @@ export class IdeaService {
         .insert(agents)
         .values({
           companyId: idea.companyId,
-          name: "팀장",
+          name: leaderDisplayName,
           teamRole: "leader",
           status: "idle",
           adapterId: DEFAULT_ADAPTER_ID,
@@ -181,7 +184,7 @@ export class IdeaService {
         (idea.structured as { summary?: string } | null)?.summary ??
         idea.rawText.slice(0, 50);
 
-      const ideaLocale = (idea.structured as Record<string, unknown> | null)?.locale ?? detectLocale(idea.rawText);
+      // Use detectedLang from outer scope (already computed before transaction)
 
       const [project] = await tx
         .insert(projects)
@@ -190,7 +193,7 @@ export class IdeaService {
           name: projectName,
           description: idea.rawText,
           leaderAgentId: leader!.id,
-          settings: { locale: ideaLocale },
+          settings: { locale: detectedLang },
         })
         .returning();
 
