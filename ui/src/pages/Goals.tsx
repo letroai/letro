@@ -22,6 +22,7 @@ export default function Goals() {
     queryKey: queryKeys.goals.list(projectId!),
     queryFn: () => listGoals(projectId!),
     enabled: !!projectId,
+    refetchInterval: 5000,
   });
 
   if (isLoading) {

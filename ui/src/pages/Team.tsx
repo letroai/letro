@@ -29,6 +29,7 @@ export default function Team() {
     queryKey: queryKeys.projects.team(projectId!),
     queryFn: () => getTeam(projectId!),
     enabled: !!projectId,
+    refetchInterval: 5000,
   });
 
   if (isLoading) {
@@ -199,7 +200,7 @@ function StatusBadge({ status }: { status: string }) {
   const { label, variant, icon: Icon } = config[status] ?? fallback;
 
   return (
-    <Badge variant={variant}>
+    <Badge variant={variant} className="shrink-0 whitespace-nowrap">
       <Icon className="w-3 h-3 mr-1" />
       {label}
     </Badge>

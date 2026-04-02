@@ -20,6 +20,7 @@ export default function Costs() {
     queryKey: queryKeys.costs.summary(projectId!),
     queryFn: () => getCostSummary(projectId!),
     enabled: !!projectId,
+    refetchInterval: 5000,
   });
 
   if (isLoading) {

@@ -26,6 +26,7 @@ export default function ProjectSettings() {
     queryKey: queryKeys.projects.detail(projectId!),
     queryFn: () => getProject(projectId!),
     enabled: !!projectId,
+    refetchInterval: 5000,
   });
 
   const { data: team } = useQuery({
