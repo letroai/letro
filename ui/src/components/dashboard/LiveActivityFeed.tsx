@@ -33,27 +33,36 @@ function dbToEvent(n: DBNotification): ActivityEvent | null {
 export function LiveActivityFeed() {
   const [liveEvents, setLiveEvents] = useState<ActivityEvent[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastDbFetchRef = useRef(0);
 
   // Load past events from DB
-  const { data: pastNotifications } = useQuery<DBNotification[]>({
+  const { data: pastNotifications, dataUpdatedAt } = useQuery<DBNotification[]>({
     queryKey: ["notifications", "feed"],
-    queryFn: () => api.get<DBNotification[]>("/notifications", { limit: 30 }),
+    queryFn: () => api.get<DBNotification[]>("/notifications", { limit: 50 }),
     staleTime: 30_000,
   });
+
+  // When DB data refreshes, clear live events (they're now in the DB result)
+  useEffect(() => {
+    if (dataUpdatedAt && dataUpdatedAt !== lastDbFetchRef.current) {
+      lastDbFetchRef.current = dataUpdatedAt;
+      setLiveEvents([]);
+    }
+  }, [dataUpdatedAt]);
 
   const pastEvents: ActivityEvent[] = (pastNotifications ?? [])
     .map(dbToEvent)
     .filter((e): e is ActivityEvent => e !== null)
-    .reverse(); // DB returns desc, we want asc
+    .reverse();
 
-  // Listen for real-time events
+  // Listen for real-time events (shown instantly before next DB refetch)
   useEffect(() => {
     const handler = (e: Event) => {
       try {
         const data = JSON.parse((e as MessageEvent).data as string);
         if (data.type === "activity") {
           setLiveEvents((prev) => [
-            ...prev.slice(-50),
+            ...prev.slice(-20),
             {
               agentName: data.agentName as string,
               agentRole: data.agentRole as "leader" | "member",
@@ -70,19 +79,12 @@ export function LiveActivityFeed() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [liveEvents]);
+  }, [liveEvents, pastEvents.length]);
 
-  // Merge past (from DB) + live (from WebSocket), deduplicate by message+time
+  // Past from DB + live from WS (live cleared on DB refresh, so no duplication)
   const allEvents = [...pastEvents, ...liveEvents];
-  const seen = new Set<string>();
-  const deduped = allEvents.filter((e) => {
-    const key = `${e.message}|${e.timestamp}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 
-  if (deduped.length === 0) {
+  if (allEvents.length === 0) {
     return (
       <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
         <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">
@@ -103,11 +105,11 @@ export function LiveActivityFeed() {
           활동 내역
         </h3>
         <span className="text-xs text-[var(--text-muted)]">
-          {deduped.length}개
+          {allEvents.length}개
         </span>
       </div>
       <div className="max-h-64 overflow-y-auto space-y-2">
-        {deduped.map((event, i) => {
+        {allEvents.map((event, i) => {
           const time = new Date(event.timestamp).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
             minute: "2-digit",
