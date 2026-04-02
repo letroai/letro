@@ -1,7 +1,9 @@
+// ui/src/providers/Providers.tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { ThemeProvider } from "./ThemeProvider";
 import { LiveUpdatesProvider } from "./LiveUpdatesProvider";
+import { AuthProvider } from "./AuthProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,7 +20,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <LiveUpdatesProvider>{children}</LiveUpdatesProvider>
+        <AuthProvider>
+          <LiveUpdatesProvider>{children}</LiveUpdatesProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

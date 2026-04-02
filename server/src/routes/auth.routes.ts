@@ -177,27 +177,32 @@ authRoutes.post("/auth/register", async (c) => {
     updatedAt: now,
   });
 
-  // Create a default workspace (company) for this user
-  const companyId = newId();
-  await db.insert(companies).values({
-    name: `${displayName}의 워크스페이스`,
-    slug: `user-${userId.slice(0, 8)}`,
-    defaultAutonomyLevel: 4,
-    autoHireEnabled: true,
-    autoFireEnabled: false,
-    explorationEnabled: true,
-    peerReviewRequired: false,
-    createdAt: now,
-    updatedAt: now,
-  });
+  // Create a default workspace (company) for this user.
+  // companies.id is a UUID with defaultRandom(), so we use .returning() to get it.
+  const [newCompany] = await db
+    .insert(companies)
+    .values({
+      name: `${displayName}의 워크스페이스`,
+      slug: `user-${userId.slice(0, 8)}`,
+      defaultAutonomyLevel: 4,
+      autoHireEnabled: true,
+      autoFireEnabled: false,
+      explorationEnabled: true,
+      peerReviewRequired: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning({ id: companies.id });
 
-  await db.insert(companyMemberships).values({
-    userId,
-    companyId,
-    role: "owner",
-    createdAt: now,
-    updatedAt: now,
-  });
+  if (newCompany) {
+    await db.insert(companyMemberships).values({
+      userId,
+      companyId: newCompany.id,
+      role: "owner",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   // Create session (refresh token stored in DB)
   const refreshToken = generateRefreshToken();

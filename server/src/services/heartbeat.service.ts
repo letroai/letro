@@ -19,7 +19,7 @@ import type { ApprovalService } from "./approval.service.js";
 import type { ActivityLogService } from "./activity-log.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
-import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS } from "../lib/defaults.js";
+import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS, MAX_TOTAL_PENDING_TASKS } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
 import { executionWorkspaces } from "@letro/db/schema";
@@ -280,6 +280,15 @@ export class HeartbeatService {
         done: existingIssues.filter((i) => i.status === "done").length,
       };
       const pendingTasks = taskCounts.todo + taskCounts.inProgress;
+      const totalPending = pendingTasks + taskCounts.backlog;
+
+      // Hard gate: skip task creation entirely if too many tasks are queued
+      if (totalPending >= MAX_TOTAL_PENDING_TASKS) {
+        this.logger.info(
+          { leaderId: agent.id, totalPending, max: MAX_TOTAL_PENDING_TASKS },
+          "Too many pending tasks (backlog+todo+in_progress), skipping task creation entirely",
+        );
+      } else {
 
       // Count current active team members
       const existingMembers = await this.db
@@ -323,6 +332,7 @@ export class HeartbeatService {
           "Enough pending tasks, skipping task creation",
         );
       }
+      } // end: totalPending < MAX_TOTAL_PENDING_TASKS
     } catch (err) {
       this.logger.error(
         { leaderId: agent.id, err },
@@ -572,6 +582,14 @@ After creating all files, write a one-paragraph summary of what you built.`;
       ? `\n\n이미 존재하는 작업 목록 (중복 생성 금지):\n${existingTitles}`
       : "\n\n아직 생성된 작업이 없습니다.";
 
+    // Determine the current max phase from existing tasks
+    const existingPhases = existingIssues
+      .map((i) => {
+        const meta = i as unknown as { metadata?: { phase?: number } };
+        return meta.metadata?.phase ?? 0;
+      });
+    const currentMaxPhase = existingPhases.length > 0 ? Math.max(...existingPhases) : 0;
+
     const prompt = `프로젝트 "${project.name}"의 팀장으로서 다음 목표를 달성하기 위한 구체적인 작업을 생성하세요.
 
 ${goalSummary}${ideaContext}${existingContext}
@@ -582,28 +600,36 @@ ${goalSummary}${ideaContext}${existingContext}
     "title": "작업 제목",
     "description": "구체적으로 무엇을 해야 하는지",
     "priority": "medium",
-    "depends_on": [],
-    "parallel": true
+    "phase": 1,
+    "depends_on": []
   }
 ]
 
-규칙:
-- 현재 진행 중이거나 완료된 작업 이후의 다음 논리적 단계에 해당하는 작업만 생성하세요
-- 의존성 표시: 작업 B가 작업 A의 결과를 필요로 하면 A의 제목을 depends_on에 넣으세요
-- parallel: 진행 중인 작업에 의존하지 않으면 true로 표시
-- 먼 미래의 단계에 해당하는 작업은 생성하지 마세요
-- 최대 ${maxNew}개의 작업만 생성하세요
-- 이미 존재하는 작업과 중복되지 않아야 합니다
-- 각 작업은 한 명의 팀원이 독립적으로 수행할 수 있어야 합니다
-- 작업은 구체적이고 실행 가능해야 합니다
-- 우선순위는 "critical", "high", "medium", "low" 중 하나입니다`;
+■ Phase (단계) 규칙:
+- phase는 작업 실행 순서를 나타내는 숫자입니다
+- 같은 phase의 작업들은 동시에 병렬 실행됩니다
+- phase N+1의 작업은 phase N의 모든 작업이 완료된 후에만 시작됩니다
+- 현재 가장 높은 phase는 ${currentMaxPhase}입니다. 다음 작업의 phase는 ${currentMaxPhase + 1}부터 시작하세요
+- 예: phase 1 = 설계/기획, phase 2 = 핵심 구현, phase 3 = UI, phase 4 = 테스트/마무리
+
+■ 의존성 규칙:
+- depends_on: 같은 phase 안에서도 특정 작업이 먼저 완료되어야 하면 해당 작업의 제목을 넣으세요
+- 다른 phase 의존성은 phase 번호가 자동으로 관리하므로, 같은 phase 내 의존성만 명시하세요
+- 의존성이 없으면 빈 배열 []
+
+■ 기타 규칙:
+- 최대 ${maxNew}개의 작업만 생성
+- 이미 존재하는 작업과 중복 금지
+- 각 작업은 한 명의 팀원이 독립 수행 가능해야 함
+- 우선순위: "critical", "high", "medium", "low"
+- 먼 미래 작업 금지 — 바로 다음 1~2 단계만`;
 
     let tasksToCreate: Array<{
       title: string;
       description: string;
       priority: string;
+      phase?: number;
       depends_on?: string[];
-      parallel?: boolean;
     }> = [];
 
     const response = await callLLM({
@@ -618,7 +644,7 @@ ${goalSummary}${ideaContext}${existingContext}
 
     tasksToCreate = parsed
       .filter(
-        (t: unknown): t is { title: string; description: string; priority: string; depends_on?: string[]; parallel?: boolean } =>
+        (t: unknown): t is { title: string; description: string; priority: string; phase?: number; depends_on?: string[] } =>
           typeof t === "object" &&
           t !== null &&
           typeof (t as Record<string, unknown>).title === "string" &&
@@ -641,16 +667,43 @@ ${goalSummary}${ideaContext}${existingContext}
 
     const linkedGoalId = goalLinks[0]?.goalId ?? null;
 
-    // Determine status based on dependency resolution:
-    // - If depends_on is empty or all deps are done -> "todo"
-    // - If depends_on has unmet dependencies -> "backlog"
-    const getStatus = (task: { depends_on?: string[] }): "todo" | "backlog" => {
-      const deps = task.depends_on ?? [];
-      if (deps.length === 0) {
-        return "todo";
+    // Determine the lowest phase among new tasks
+    const minNewPhase = Math.min(...tasksToCreate.map((t) => t.phase ?? currentMaxPhase + 1));
+
+    // Check if all tasks from previous phases are done
+    const previousPhasesDone = existingIssues
+      .filter((i) => {
+        const meta = i as unknown as { metadata?: { phase?: number } };
+        const p = meta.metadata?.phase ?? 0;
+        return p < minNewPhase;
+      })
+      .every((i) => i.status === "done");
+
+    // Determine status:
+    // - Phase-based: if previous phases not all done → backlog
+    // - Dependency-based: if depends_on has unmet deps → backlog
+    const getStatus = (task: { phase?: number; depends_on?: string[] }): "todo" | "backlog" => {
+      const phase = task.phase ?? currentMaxPhase + 1;
+
+      // Phase gate: if any prior phase has incomplete tasks, this goes to backlog
+      if (phase > minNewPhase || !previousPhasesDone) {
+        // Check if ALL tasks from phases before this one are done
+        const priorDone = existingIssues
+          .filter((i) => {
+            const meta = i as unknown as { metadata?: { phase?: number } };
+            return (meta.metadata?.phase ?? 0) < phase;
+          })
+          .every((i) => i.status === "done");
+        if (!priorDone) return "backlog";
       }
-      const allDepsCompleted = deps.every((dep) => doneTitles.has(dep));
-      return allDepsCompleted ? "todo" : "backlog";
+
+      // Dependency gate: explicit depends_on within same phase
+      const deps = task.depends_on ?? [];
+      if (deps.length > 0 && !deps.every((dep) => doneTitles.has(dep))) {
+        return "backlog";
+      }
+
+      return "todo";
     };
 
     const insertValues = tasksToCreate.map((task, idx) => ({
@@ -665,7 +718,10 @@ ${goalSummary}${ideaContext}${existingContext}
       autoApproved: true,
       createdByAgentId: agent.id,
       sortOrder: idx,
-      metadata: { depends_on: task.depends_on ?? [], parallel: task.parallel ?? true },
+      metadata: {
+        phase: task.phase ?? currentMaxPhase + 1,
+        depends_on: task.depends_on ?? [],
+      },
     }));
 
     const created = await this.db
@@ -702,8 +758,12 @@ ${goalSummary}${ideaContext}${existingContext}
    * (stored in metadata) is empty or all referenced tasks are now "done",
    * the task is promoted to "todo" so it can be assigned to a member.
    */
+  /**
+   * Promotes backlog tasks to todo when:
+   * 1. All tasks from previous phases are done (phase gate)
+   * 2. All explicit depends_on tasks are done (dependency gate)
+   */
   private async promoteUnblockedTasks(project: { id: string }) {
-    // Get all done task titles for dependency checking
     const allIssues = await this.db
       .select({ id: issues.id, title: issues.title, status: issues.status, metadata: issues.metadata })
       .from(issues)
@@ -713,28 +773,48 @@ ${goalSummary}${ideaContext}${existingContext}
       allIssues.filter((i) => i.status === "done").map((i) => i.title),
     );
 
-    const backlogTasks = allIssues.filter((i) => i.status === "backlog");
+    // Build a map of phase → all done?
+    const phaseStatus = new Map<number, boolean>();
+    for (const issue of allIssues) {
+      const meta = issue.metadata as { phase?: number } | null;
+      const phase = meta?.phase ?? 0;
+      const current = phaseStatus.get(phase) ?? true;
+      if (issue.status !== "done") phaseStatus.set(phase, false);
+      else if (!phaseStatus.has(phase)) phaseStatus.set(phase, current);
+    }
 
+    const backlogTasks = allIssues.filter((i) => i.status === "backlog");
     if (backlogTasks.length === 0) return;
 
     let promotedCount = 0;
     for (const task of backlogTasks) {
-      const metadata = task.metadata as { depends_on?: string[] } | null;
+      const metadata = task.metadata as { depends_on?: string[]; phase?: number } | null;
       const deps = metadata?.depends_on ?? [];
+      const phase = metadata?.phase ?? 0;
 
-      // Promote if no dependencies or all dependencies are done
-      if (deps.length === 0 || deps.every((dep) => doneTitles.has(dep))) {
-        await this.db
-          .update(issues)
-          .set({ status: "todo", updatedAt: new Date() })
-          .where(eq(issues.id, task.id));
-        promotedCount++;
-
-        this.logger.info(
-          { taskId: task.id, taskTitle: task.title, resolvedDeps: deps },
-          `Promoted backlog task to todo: ${task.title}`,
-        );
+      // Phase gate: all prior phases must be complete
+      let priorPhasesDone = true;
+      for (const [p, done] of phaseStatus) {
+        if (p < phase && !done) {
+          priorPhasesDone = false;
+          break;
+        }
       }
+      if (!priorPhasesDone) continue;
+
+      // Dependency gate: explicit depends_on must be done
+      if (deps.length > 0 && !deps.every((dep) => doneTitles.has(dep))) continue;
+
+      await this.db
+        .update(issues)
+        .set({ status: "todo", updatedAt: new Date() })
+        .where(eq(issues.id, task.id));
+      promotedCount++;
+
+      this.logger.info(
+        { taskId: task.id, taskTitle: task.title, phase, resolvedDeps: deps },
+        `Promoted backlog task to todo: ${task.title} (phase ${phase})`,
+      );
     }
 
     if (promotedCount > 0) {

@@ -2,8 +2,8 @@
 import { createMiddleware } from "hono/factory";
 import type { AppBindings } from "../env.js";
 import type { Actor } from "../env.js";
-import { companies, companyMemberships, sessions, users } from "@letro/db/schema";
-import { eq, and } from "drizzle-orm";
+import { companies, companyMemberships } from "@letro/db/schema";
+import { eq } from "drizzle-orm";
 import { verifyAccessToken } from "../lib/user-jwt.js";
 
 // Cache default company ID in local_trusted mode (avoid DB lookup on every request)

@@ -55,6 +55,10 @@ export const RESULT_TRUNCATE_BYTES = 10_240; // 10KB
 export const ADAPTER_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 export const CLAUDE_MAX_TURNS = 50;
 
+// ===== Task Flow Limits =====
+export const MAX_TOTAL_PENDING_TASKS = 10; // Skip task creation if total pending exceeds this
+export const MAX_TASKS_PER_PHASE = 5; // Max parallel tasks in one phase
+
 // ===== Leader Agent Defaults =====
 export const LEADER_DEFAULT_INSTRUCTIONS = `당신은 프로젝트 팀장입니다.
 당신의 역할:
