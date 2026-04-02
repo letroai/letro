@@ -114,6 +114,36 @@ export function callLLMStreaming(
               onChunk(text);
             }
           }
+          // Show tool use events (Write, Edit, Bash) as activity
+          if (obj.type === "assistant" && obj.message?.content) {
+            for (const block of obj.message.content) {
+              if (block.type === "tool_use") {
+                const toolName = block.name;
+                const input = block.input ?? {};
+                let label = "";
+                if (toolName === "Write" && input.file_path) {
+                  label = `\n📝 파일 생성: ${input.file_path}\n`;
+                } else if (toolName === "Edit" && input.file_path) {
+                  label = `\n✏️ 파일 수정: ${input.file_path}\n`;
+                } else if (toolName === "Bash" && input.command) {
+                  label = `\n💻 실행: ${String(input.command).slice(0, 80)}\n`;
+                }
+                if (label) {
+                  fullText += label;
+                  onChunk(label);
+                }
+              }
+            }
+          }
+          // Show tool results
+          if (obj.type === "user" && obj.tool_use_result) {
+            const r = obj.tool_use_result;
+            if (r.type === "create" && r.filePath) {
+              const label = `✅ 생성 완료: ${r.filePath}\n`;
+              fullText += label;
+              onChunk(label);
+            }
+          }
           // Extract final result text
           if (obj.type === "result" && obj.result) {
             if (!fullText) fullText = obj.result;

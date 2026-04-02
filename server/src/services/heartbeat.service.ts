@@ -400,13 +400,13 @@ export class HeartbeatService {
     try {
       clearTaskOutput(task.id);
 
-      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer working on a real project. Create actual files and code.`;
-      const taskPrompt = `You are working on the following task. Implement it by creating/editing actual files in the current working directory.
+      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer. You MUST create actual files using the Write tool. Do NOT just describe what you would do — actually implement it by writing real files.`;
+      const taskPrompt = `Implement the following task by creating actual files and code in the current working directory. Use the Write tool to create each file. Do not explain — just build it.
 
 Task: ${task.title}
 Description: ${task.description ?? "No additional details"}
 
-Create real files with working code. When done, provide a brief summary of what you created.`;
+After creating all files, write a brief one-paragraph summary of what you built.`;
 
       const onChunk = (chunk: string) => {
         appendTaskOutput(task.id, chunk);
