@@ -20,7 +20,8 @@ ideaRoutes.post("/ideas", async (c) => {
   const services = c.get("services");
   const companyId = getCompanyId(actor);
   const userId = actor.kind === "user" ? actor.userId : "local-user";
-  const idea = await services.idea.create(companyId, userId, parsed.raw_text);
+  const locale = (body as Record<string, unknown>).locale as string | undefined;
+  const idea = await services.idea.create(companyId, userId, parsed.raw_text, locale);
   return c.json(idea, 201);
 });
 

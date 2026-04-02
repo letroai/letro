@@ -36,7 +36,7 @@ export class IdeaService {
    * @param rawText - Raw text entered by the user
    * @returns Created idea record
    */
-  async create(companyId: string, userId: string, rawText: string) {
+  async create(companyId: string, userId: string, rawText: string, locale?: string) {
     this.logger.info({ companyId, userId }, "New idea received");
 
     const [idea] = await this.db
@@ -58,15 +58,16 @@ export class IdeaService {
     });
 
     // Structure the idea via Claude CLI
+    const effectiveLocale = (locale as "ko" | "en") ?? detectLocale(rawText);
     let structured: Record<string, unknown>;
     try {
-      const response = await callLLM({
-        system: IDEA_STRUCTURING_PROMPT,
-        prompt: `사용자 아이디어: "${rawText}"\n\nJSON으로만 응답하세요.`,
-      });
+      const systemPrompt = effectiveLocale === "ko" ? IDEA_STRUCTURING_PROMPT : IDEA_STRUCTURING_PROMPT_EN;
+      const userPrompt = effectiveLocale === "ko"
+        ? `사용자 아이디어: "${rawText}"\n\nJSON으로만 응답하세요.`
+        : `User idea: "${rawText}"\n\nRespond with JSON only.`;
+      const response = await callLLM({ system: systemPrompt, prompt: userPrompt });
       structured = JSON.parse(response.content) as Record<string, unknown>;
-      // Auto-detect locale from user's idea text
-      structured.locale = detectLocale(rawText);
+      structured.locale = effectiveLocale;
       this.logger.info({ ideaId: idea!.id, locale: structured.locale }, "Idea structured via Claude");
     } catch (err) {
       this.logger.warn({ ideaId: idea!.id, err }, "Claude call failed, using mock");
@@ -273,6 +274,39 @@ const IDEA_STRUCTURING_PROMPT = `사용자의 아이디어를 분석하여 정�
 - team_composition.members는 2~4명
 - MVP 범위로 최소한으로 설계
 - estimated_cost_usd는 AI API 사용 비용 기준으로 보수적 추정`;
+
+const IDEA_STRUCTURING_PROMPT_EN = `Analyze the user's idea and return EXACTLY the JSON schema below.
+Return pure JSON only, no other text or formatting.
+
+Schema:
+{
+  "summary": "One-line project summary (in English)",
+  "goal": {
+    "title": "Project name (short and clear, e.g., Team Lunch Planner)",
+    "description": "Project detailed description (3-5 sentences, in English)"
+  },
+  "initiatives": [
+    { "title": "Phase name", "tasks": ["task 1", "task 2"] }
+  ],
+  "team_composition": {
+    "leader": { "display_name": "Project Manager" },
+    "members": [
+      { "preset": "backend_engineer|frontend_engineer|fullstack_engineer|devops_engineer|qa_engineer|designer", "member_type": "coder|researcher|reviewer|qa", "display_name": "Role name in English", "reason": "Why needed" }
+    ]
+  },
+  "tech_stack": { "frontend": "...", "backend": "...", "database": "..." },
+  "estimated_duration_days": number,
+  "estimated_cost_usd": number,
+  "required_connections": []
+}
+
+Rules:
+- ALL text values must be in English
+- goal.title should be a short name capturing the core idea
+- initiatives: 2-4 phases
+- team_composition.members: 2-4 members
+- Design for MVP scope (minimal)
+- estimated_cost_usd: conservative estimate based on AI API usage`;
 
 /**
  * Mock function to structure an idea without LLM.

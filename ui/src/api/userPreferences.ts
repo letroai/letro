@@ -4,6 +4,7 @@ export interface UserPreferences {
   userId: string;
   theme: "light" | "dark" | "system";
   lastProjectId: string | null;
+  locale?: string;
 }
 
 export function getUserPreferences(): Promise<UserPreferences> {
@@ -11,7 +12,7 @@ export function getUserPreferences(): Promise<UserPreferences> {
 }
 
 export function updateUserPreferences(
-  data: Partial<Pick<UserPreferences, "theme" | "lastProjectId">>,
+  data: Partial<Pick<UserPreferences, "theme" | "lastProjectId" | "locale">>,
 ): Promise<UserPreferences> {
   return api.patch<UserPreferences>("/user/preferences", data);
 }

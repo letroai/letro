@@ -14,6 +14,7 @@ export interface Idea {
 
 export interface CreateIdeaInput {
   raw_text: string;
+  locale?: "ko" | "en";
 }
 
 export interface ActivateIdeaInput {

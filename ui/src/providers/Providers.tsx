@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { ThemeProvider } from "./ThemeProvider";
 import { LiveUpdatesProvider } from "./LiveUpdatesProvider";
 import { AuthProvider } from "./AuthProvider";
+import { LocaleProvider } from "./LocaleProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <LiveUpdatesProvider>{children}</LiveUpdatesProvider>
+          <LocaleProvider>
+            <LiveUpdatesProvider>{children}</LiveUpdatesProvider>
+          </LocaleProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

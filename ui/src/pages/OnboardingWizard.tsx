@@ -89,8 +89,8 @@ export default function OnboardingWizard() {
 
   const handleSubmit = useCallback(() => {
     if (!rawInput.trim()) return;
-    createMutation.mutate({ raw_text: rawInput.trim() });
-  }, [rawInput, createMutation]);
+    createMutation.mutate({ raw_text: rawInput.trim(), locale });
+  }, [rawInput, locale, createMutation]);
 
   const handleExampleClick = useCallback((example: string) => {
     setRawInput(example);
@@ -150,10 +150,10 @@ export default function OnboardingWizard() {
             <Lightbulb className="w-7 h-7 text-primary-500" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            어떤 걸 만들고 싶으세요?
+            {locale === "ko" ? "어떤 걸 만들고 싶으세요?" : "What do you want to build?"}
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            아이디어를 자유롭게 적어주세요. 나머지는 저희가 알아서 할게요.
+            {locale === "ko" ? "아이디어를 자유롭게 적어주세요. 나머지는 저희가 알아서 할게요." : "Just describe your idea. We'll handle the rest."}
           </p>
         </div>
 
@@ -271,6 +271,27 @@ export default function OnboardingWizard() {
               )}
             </div>
 
+            {/* Language selector */}
+            {isReady && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-[var(--text-muted)]">Language</span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setLocale("ko")}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "ko" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >🇰🇷 한국어</button>
+                  <button
+                    onClick={() => setLocale("en")}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "en" ? "bg-primary-500 text-white" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >🇺🇸 English</button>
+                </div>
+              </div>
+            )}
+
             {/* Idea input — only enabled when AI tools are available */}
             {isReady && (
               <>
@@ -278,7 +299,7 @@ export default function OnboardingWizard() {
                   <textarea
                     value={rawInput}
                     onChange={(e) => setRawInput(e.target.value)}
-                    placeholder="예: 우리 회사 직원들이 점심 메뉴를 투표할 수 있는 앱"
+                    placeholder={locale === "ko" ? "예: 우리 회사 직원들이 점심 메뉴를 투표할 수 있는 앱" : "e.g., Build a team lunch voting app for our company"}
                     rows={4}
                     className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-base text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 resize-none transition-colors"
                     autoFocus
@@ -291,12 +312,12 @@ export default function OnboardingWizard() {
                     {createMutation.isPending ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        분석 중...
+                        {locale === "ko" ? "분석 중..." : "Analyzing..."}
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        분석하기
+                        {locale === "ko" ? "분석하기" : "Analyze"}
                       </>
                     )}
                   </button>
