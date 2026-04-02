@@ -9,6 +9,7 @@ import { initDatabase } from "./services/database.js";
 import { createServiceContainer } from "./services/index.js";
 import { setupWebSocketServer } from "./ws/websocket-server.js";
 import { initTaskOutputStore } from "./lib/task-output-store.js";
+import { recoverStuckAgents } from "./lib/startup-recovery.js";
 
 async function main() {
   const config = loadConfig();
@@ -63,6 +64,9 @@ async function main() {
   // Connect WebSocket server to HTTP server
   setupWebSocketServer(server);
   logger.info("WebSocket server ready at /api/ws");
+
+  // Recover from unclean shutdown: reset stuck agents and tasks, restart leaders
+  await recoverStuckAgents(db, services, logger);
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "Shutdown signal received");
