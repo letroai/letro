@@ -67,7 +67,7 @@ export default function TeamMemberDetail() {
   }
 
   const isLeader = agent.teamRole === "leader";
-  const roleLabel = isLeader ? (locale === "ko" ? "팀장" : "Leader") : (t("team.memberDetail"));
+  const roleLabel = isLeader ? t("team.leader") : t("team.memberDetail");
   const assignedTasks = tasks ?? [];
   const inProgressTasks = assignedTasks.filter(
     (t) => t.status === "in_progress",
