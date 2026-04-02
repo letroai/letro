@@ -290,36 +290,12 @@ function LiveTaskOutput({
 
 /* ── Refined Output ────────────────────────────────────────────── */
 
-/**
- * Parses raw Claude output and renders it with code blocks collapsed.
- * Text is shown normally; code/JSON blocks become expandable summaries.
- */
-function RefinedOutput({ text }: { text: string }) {
-  const segments = useMemo(() => parseOutputSegments(text), [text]);
-
-  return (
-    <>
-      {segments.map((seg, i) =>
-        seg.type === "text" ? (
-          <p key={i} className="whitespace-pre-wrap break-words">
-            {seg.content}
-          </p>
-        ) : (
-          <CollapsedCodeBlock
-            key={i}
-            lang={seg.lang}
-            content={seg.content}
-            lineCount={seg.lineCount}
-          />
-        ),
-      )}
-    </>
-  );
-}
-
 type Segment =
   | { type: "text"; content: string }
+  | { type: "tool"; icon: string; label: string }
   | { type: "code"; lang: string; content: string; lineCount: number };
+
+const TOOL_LINE_RE = /^(📝|✏️|💻|📖|🔍|✅)\s*(.+)$/;
 
 function parseOutputSegments(raw: string): Segment[] {
   const segments: Segment[] = [];
@@ -328,45 +304,74 @@ function parseOutputSegments(raw: string): Segment[] {
   let match;
 
   while ((match = codeBlockRe.exec(raw)) !== null) {
-    const textBefore = raw.slice(lastIndex, match.index).trim();
-    if (textBefore) {
-      segments.push({ type: "text", content: textBefore });
-    }
-
+    const before = raw.slice(lastIndex, match.index);
+    pushTextLines(segments, before);
     const lang = match[1] || "code";
     const code = match[2]!;
-    const lineCount = code.split("\n").filter((l) => l.trim()).length;
-    segments.push({ type: "code", lang, content: code, lineCount });
+    segments.push({ type: "code", lang, content: code, lineCount: code.split("\n").filter((l) => l.trim()).length });
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining text (or incomplete code block still streaming)
-  const remaining = raw.slice(lastIndex).trim();
-  if (remaining) {
-    // If it starts with ``` it's an incomplete code block being streamed
-    if (remaining.startsWith("```")) {
-      const firstNewline = remaining.indexOf("\n");
-      const lang = firstNewline > 3 ? remaining.slice(3, firstNewline) : "code";
-      const partial = firstNewline > 0 ? remaining.slice(firstNewline + 1) : "";
-      const lineCount = partial.split("\n").filter((l) => l.trim()).length;
-      segments.push({ type: "code", lang, content: partial, lineCount });
-    } else {
-      segments.push({ type: "text", content: remaining });
-    }
+  const remaining = raw.slice(lastIndex);
+  if (remaining.startsWith("```")) {
+    const nl = remaining.indexOf("\n");
+    const lang = nl > 3 ? remaining.slice(3, nl) : "code";
+    const partial = nl > 0 ? remaining.slice(nl + 1) : "";
+    segments.push({ type: "code", lang, content: partial, lineCount: partial.split("\n").filter((l) => l.trim()).length });
+  } else {
+    pushTextLines(segments, remaining);
   }
-
   return segments;
 }
 
-function CollapsedCodeBlock({
-  lang,
-  content,
-  lineCount,
-}: {
-  lang: string;
-  content: string;
-  lineCount: number;
-}) {
+function pushTextLines(segments: Segment[], raw: string) {
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const toolMatch = TOOL_LINE_RE.exec(trimmed);
+    if (toolMatch) {
+      segments.push({ type: "tool", icon: toolMatch[1]!, label: toolMatch[2]! });
+    } else {
+      // Merge consecutive text segments
+      const last = segments[segments.length - 1];
+      if (last?.type === "text") {
+        last.content += "\n" + trimmed;
+      } else {
+        segments.push({ type: "text", content: trimmed });
+      }
+    }
+  }
+}
+
+function RefinedOutput({ text }: { text: string }) {
+  const segments = useMemo(() => parseOutputSegments(text), [text]);
+
+  return (
+    <div className="space-y-2">
+      {segments.map((seg, i) => {
+        if (seg.type === "tool") return <ToolLine key={i} icon={seg.icon} label={seg.label} />;
+        if (seg.type === "code") return <CollapsedCodeBlock key={i} lang={seg.lang} content={seg.content} lineCount={seg.lineCount} />;
+        return <p key={i} className="text-sm whitespace-pre-wrap break-words">{seg.content}</p>;
+      })}
+    </div>
+  );
+}
+
+function ToolLine({ icon, label }: { icon: string; label: string }) {
+  const isComplete = icon === "✅";
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium ${
+      isComplete
+        ? "bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400"
+        : "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+    }`}>
+      <span>{icon}</span>
+      <span className="truncate">{label}</span>
+    </div>
+  );
+}
+
+function CollapsedCodeBlock({ lang, content, lineCount }: { lang: string; content: string; lineCount: number }) {
   const [open, setOpen] = useState(false);
   const preview = content.split("\n").find((l) => l.trim())?.trim().slice(0, 60) || "";
 
@@ -377,21 +382,11 @@ function CollapsedCodeBlock({
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-[var(--bg-hover)] transition-colors"
       >
-        <ChevronRight
-          className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${
-            open ? "rotate-90" : ""
-          }`}
-        />
+        <ChevronRight className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${open ? "rotate-90" : ""}`} />
         <Code className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-        <span className="font-medium text-[var(--text-secondary)]">
-          {lang}
-        </span>
-        <span className="text-[var(--text-muted)] truncate flex-1">
-          {preview}{preview.length >= 60 ? "..." : ""}
-        </span>
-        <span className="text-[var(--text-muted)] shrink-0">
-          {lineCount}줄
-        </span>
+        <span className="font-medium text-[var(--text-secondary)]">{lang}</span>
+        <span className="text-[var(--text-muted)] truncate flex-1">{preview}{preview.length >= 60 ? "..." : ""}</span>
+        <span className="text-[var(--text-muted)] shrink-0">{lineCount}줄</span>
       </button>
       {open && (
         <pre className="px-3 py-2 border-t border-[var(--border-default)] bg-gray-950 text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">

@@ -11,6 +11,42 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+/** Formats a human-readable label for a Claude tool call. */
+function formatToolLabel(toolName: string, inputJson: string): string {
+  try {
+    const input = JSON.parse(inputJson);
+    switch (toolName) {
+      case "Write": {
+        const p = input.file_path ?? "";
+        const name = p.split("/").pop() ?? p;
+        return `\n📝 파일 생성: ${name}\n`;
+      }
+      case "Edit": {
+        const p = input.file_path ?? "";
+        const name = p.split("/").pop() ?? p;
+        return `\n✏️ 파일 수정: ${name}\n`;
+      }
+      case "Bash": {
+        const cmd = String(input.command ?? "").slice(0, 60);
+        return `\n💻 실행: ${cmd}\n`;
+      }
+      case "Read": {
+        const p = input.file_path ?? "";
+        const name = p.split("/").pop() ?? p;
+        return `\n📖 파일 읽기: ${name}\n`;
+      }
+      case "Glob":
+        return `\n🔍 파일 검색: ${input.pattern ?? ""}\n`;
+      case "Grep":
+        return `\n🔍 코드 검색: ${input.pattern ?? ""}\n`;
+      default:
+        return "";
+    }
+  } catch {
+    return "";
+  }
+}
+
 export interface LLMCallOptions {
   system?: string;
   prompt: string;
@@ -94,57 +130,71 @@ export function callLLMStreaming(
     let fullText = "";
     let stderr = "";
     let buffer = "";
+    // Track current tool_use block to suppress json_delta noise
+    let currentToolName = "";
+    let currentToolInputJson = "";
 
     child.stdout.on("data", (data: Buffer) => {
       buffer += data.toString();
-      // Process complete JSON lines
       const lines = buffer.split("\n");
-      buffer = lines.pop() ?? ""; // Keep incomplete line in buffer
+      buffer = lines.pop() ?? "";
 
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         try {
           const obj = JSON.parse(trimmed);
-          // Extract streaming text from content_block_delta events
-          if (obj.type === "stream_event" && obj.event?.type === "content_block_delta") {
-            const text = obj.event.delta?.text;
-            if (text) {
-              fullText += text;
-              onChunk(text);
+
+          if (obj.type === "stream_event") {
+            const evt = obj.event;
+            if (!evt) continue;
+
+            // Tool call starts — show label, suppress subsequent json deltas
+            if (evt.type === "content_block_start" && evt.content_block?.type === "tool_use") {
+              currentToolName = evt.content_block.name ?? "";
+              currentToolInputJson = "";
             }
-          }
-          // Show tool use events (Write, Edit, Bash) as activity
-          if (obj.type === "assistant" && obj.message?.content) {
-            for (const block of obj.message.content) {
-              if (block.type === "tool_use") {
-                const toolName = block.name;
-                const input = block.input ?? {};
-                let label = "";
-                if (toolName === "Write" && input.file_path) {
-                  label = `\n📝 파일 생성: ${input.file_path}\n`;
-                } else if (toolName === "Edit" && input.file_path) {
-                  label = `\n✏️ 파일 수정: ${input.file_path}\n`;
-                } else if (toolName === "Bash" && input.command) {
-                  label = `\n💻 실행: ${String(input.command).slice(0, 80)}\n`;
-                }
-                if (label) {
-                  fullText += label;
-                  onChunk(label);
-                }
+
+            if (evt.type === "content_block_delta") {
+              const delta = evt.delta;
+              if (delta?.type === "text_delta" && delta.text) {
+                // Normal text output — show to user
+                fullText += delta.text;
+                onChunk(delta.text);
+              } else if (delta?.type === "input_json_delta") {
+                // Tool input JSON chunk — accumulate silently (don't show raw json)
+                currentToolInputJson += delta.partial_json ?? "";
               }
             }
+
+            // Tool call done — extract file path and show a clean label
+            if (evt.type === "content_block_stop" && currentToolName) {
+              const label = formatToolLabel(currentToolName, currentToolInputJson);
+              if (label) {
+                fullText += label;
+                onChunk(label);
+              }
+              currentToolName = "";
+              currentToolInputJson = "";
+            }
           }
-          // Show tool results
+
+          // Tool execution result
           if (obj.type === "user" && obj.tool_use_result) {
             const r = obj.tool_use_result;
+            let label = "";
             if (r.type === "create" && r.filePath) {
-              const label = `✅ 생성 완료: ${r.filePath}\n`;
+              label = `  ✅ 완료\n`;
+            } else if (r.type === "update" && r.filePath) {
+              label = `  ✅ 완료\n`;
+            }
+            if (label) {
               fullText += label;
               onChunk(label);
             }
           }
-          // Extract final result text
+
+          // Final result text
           if (obj.type === "result" && obj.result) {
             if (!fullText) fullText = obj.result;
           }
