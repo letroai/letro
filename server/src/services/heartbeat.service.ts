@@ -653,125 +653,20 @@ ${goalSummary}${ideaContext}${existingContext}
         ),
       );
 
-    // ── Initial hiring (no members yet) ──
-    if (existingMembers.length === 0) {
-      // Extract team_composition from idea structured data
-      const teamComposition = ideaStructured?.team_composition as {
-        members?: Array<{
-          preset: string;
-          member_type: string;
-          display_name: string;
-          reason?: string;
-        }>;
-      } | null;
-
-      if (!teamComposition?.members || teamComposition.members.length === 0) {
-        this.logger.info(
-          { leaderId: agent.id },
-          "No team_composition in idea structured data, skipping hiring",
-        );
-        return;
-      }
-
-      // Filter: only hire members whose role matches existing tasks
-      // Skip roles like "designer" if there are no design tasks
-      const todoTasks = await this.db
-        .select({ title: issues.title, description: issues.description })
-        .from(issues)
-        .where(and(eq(issues.projectId, project.id), sql`${issues.status} IN ('todo', 'backlog')`));
-
-      const taskText = todoTasks.map((t) => `${t.title} ${t.description ?? ""}`).join(" ").toLowerCase();
-
-      const roleRelevance: Record<string, string[]> = {
-        backend_engineer: ["api", "server", "database", "backend", "db", "auth", "서버", "데이터"],
-        frontend_engineer: ["ui", "frontend", "화면", "페이지", "컴포넌트", "react", "프론트"],
-        fullstack_engineer: ["full", "구현", "개발", "기능"],
-        devops_engineer: ["deploy", "ci", "cd", "docker", "인프라", "배포"],
-        qa_engineer: ["test", "테스트", "검증", "품질", "qa"],
-        designer: ["디자인", "design", "ux", "ui설계", "와이어프레임", "figma"],
-        tech_lead: ["아키텍처", "설계", "architecture", "리뷰"],
-      };
-
-      const membersToHire = teamComposition.members
-        .filter((member) => {
-          const keywords = roleRelevance[member.preset] ?? [];
-          if (keywords.length === 0) return true; // unknown preset, hire anyway
-          return keywords.some((kw) => taskText.includes(kw));
-        })
-        .slice(0, MAX_TEAM_MEMBERS);
-
-      if (membersToHire.length === 0) {
-        // Fallback: hire at least one fullstack engineer
-        membersToHire.push({
-          preset: "fullstack_engineer",
-          member_type: "coder",
-          display_name: "풀스택 개발자",
-          reason: "General purpose development",
-        });
-      }
-
-      for (const member of membersToHire) {
-        const [newAgent] = await this.db
-          .insert(agents)
-          .values(
-            omitUndefined({
-              companyId: agent.companyId,
-              projectId: project.id,
-              name: member.display_name,
-              teamRole: "member",
-              memberType: member.member_type,
-              status: "idle",
-              adapterId: DEFAULT_ADAPTER_ID,
-              reportsTo: agent.id,
-              hiredByAgentId: agent.id,
-              specialization: [member.preset],
-              idleBehavior: "wait",
-              maxConcurrentTasks: 1,
-              systemPrompt: getMemberSystemPrompt(member.preset, member.member_type, member.display_name),
-            }),
-          )
-          .returning();
-
-        this.logger.info(
-          {
-            leaderId: agent.id,
-            memberId: newAgent!.id,
-            memberName: member.display_name,
-            preset: member.preset,
-          },
-          `Hired team member: ${member.display_name}`,
-        );
-
-        publishLiveEvent(agent.companyId, {
-          type: "activity",
-          agentName: "팀장",
-          agentRole: "leader",
-          message: `${member.display_name}을(를) 팀원으로 고용했어요`,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      this.logger.info(
-        { leaderId: agent.id, hiredCount: membersToHire.length },
-        `Hired ${membersToHire.length} team members from idea composition`,
-      );
-      return;
-    }
-
-    // ── Dynamic scaling (members already exist) ──
-    // If there are more assignable todo tasks than idle members, hire one more
+    // ── Hire specialists for unassigned tasks ──
+    // For each unassigned todo task with no idle member, hire a task-specific specialist
     if (existingMembers.length >= MAX_TEAM_MEMBERS) {
       this.logger.info(
         { leaderId: agent.id, memberCount: existingMembers.length, max: MAX_TEAM_MEMBERS },
-        "Team at max capacity, skipping dynamic hiring",
+        "Team at max capacity, skipping hiring",
       );
       return;
     }
 
     const idleMemberCount = existingMembers.filter((m) => m.status === "idle").length;
 
-    const todoTasks = await this.db
-      .select({ id: issues.id })
+    const unassignedTasks = await this.db
+      .select({ id: issues.id, title: issues.title, description: issues.description })
       .from(issues)
       .where(
         and(
@@ -781,26 +676,60 @@ ${goalSummary}${ideaContext}${existingContext}
         ),
       );
 
-    if (todoTasks.length > idleMemberCount) {
-      // Hire one more generalist member
-      const memberNumber = existingMembers.length + 1;
+    // How many new hires are needed?
+    const hiresNeeded = Math.min(
+      unassignedTasks.length - idleMemberCount,
+      MAX_TEAM_MEMBERS - existingMembers.length,
+      2, // max 2 hires per heartbeat to avoid burst
+    );
+
+    if (hiresNeeded <= 0) return;
+
+    // Pick tasks that need specialists
+    const tasksForHiring = unassignedTasks.slice(0, hiresNeeded);
+
+    for (const task of tasksForHiring) {
+      // Ask Claude to design a specialist for this task
+      let specialistInfo: { name: string; systemPrompt: string };
+      try {
+        const response = await callLLM({
+          system: `You design specialist AI agent profiles. Given a task, create a focused specialist.
+Return JSON only: { "name": "specialist title in Korean (3-5 words)", "systemPrompt": "detailed persona and instructions in Korean (5-8 sentences)" }`,
+          prompt: `Design a specialist agent for this task:
+
+Title: ${task.title}
+Description: ${task.description ?? "No description"}
+
+The specialist should have deep expertise specifically relevant to this task.
+Their systemPrompt should describe their skills, approach, and focus areas.
+Name should be descriptive like "API 설계 전문가" or "데이터 모델링 전문가".`,
+        });
+        specialistInfo = JSON.parse(response.content);
+      } catch {
+        // Fallback if Claude fails
+        specialistInfo = {
+          name: `${task.title.slice(0, 15)} 전문가`,
+          systemPrompt: `당신은 "${task.title}" 작업의 전문가입니다. 이 분야에서 깊은 경험과 전문성을 가지고 있습니다.`,
+        };
+      }
+
       const [newAgent] = await this.db
         .insert(agents)
         .values(
           omitUndefined({
             companyId: agent.companyId,
             projectId: project.id,
-            name: `팀원 ${memberNumber}`,
+            name: specialistInfo.name,
             teamRole: "member",
-            memberType: "engineer",
+            memberType: "specialist",
             status: "idle",
             adapterId: DEFAULT_ADAPTER_ID,
             reportsTo: agent.id,
             hiredByAgentId: agent.id,
-            specialization: ["fullstack_engineer"],
+            specialization: [task.title.slice(0, 50)],
             idleBehavior: "wait",
             maxConcurrentTasks: 1,
-            systemPrompt: getMemberSystemPrompt("fullstack_engineer", "engineer", `팀원 ${memberNumber}`),
+            systemPrompt: specialistInfo.systemPrompt,
           }),
         )
         .returning();
@@ -809,25 +738,19 @@ ${goalSummary}${ideaContext}${existingContext}
         {
           leaderId: agent.id,
           memberId: newAgent!.id,
-          todoTasks: todoTasks.length,
-          idleMembers: idleMemberCount,
-          totalMembers: existingMembers.length + 1,
+          memberName: specialistInfo.name,
+          forTask: task.title,
         },
-        `Dynamically hired 1 additional member (todo tasks: ${todoTasks.length}, idle members: ${idleMemberCount})`,
+        `Hired specialist: ${specialistInfo.name} for "${task.title}"`,
       );
 
       publishLiveEvent(agent.companyId, {
         type: "activity",
         agentName: "팀장",
         agentRole: "leader",
-        message: `작업이 많아서 팀원 ${memberNumber}을(를) 추가로 고용했어요`,
+        message: `"${task.title}" 작업을 위해 ${specialistInfo.name}을(를) 고용했어요`,
         timestamp: new Date().toISOString(),
       });
-    } else {
-      this.logger.info(
-        { leaderId: agent.id, todoTasks: todoTasks.length, idleMembers: idleMemberCount },
-        "Sufficient idle members for pending tasks, skipping dynamic hiring",
-      );
     }
   }
 
