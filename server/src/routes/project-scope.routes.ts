@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "../env.js";
 import { eq, and, sql } from "drizzle-orm";
-import { projectGoals, goals, agents, issues } from "@letro/db/schema";
+import { projectGoals, goals, agents, issues, issueComments } from "@letro/db/schema";
 import { getTaskOutput } from "../lib/task-output-store.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { getCompanyId } from "../lib/route-helpers.js";
@@ -266,9 +266,9 @@ projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
       .where(eq(agents.id, agent.id));
   }
 
-  // 2. Move in_progress tasks to todo, clear assignees
+  // 2. Save in_progress task outputs as comments, then reset tasks
   const inProgressTasks = await db
-    .select({ id: issues.id })
+    .select({ id: issues.id, companyId: issues.companyId, assigneeAgentId: issues.assigneeAgentId })
     .from(issues)
     .where(and(
       eq(issues.projectId, projectId),
@@ -276,6 +276,19 @@ projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
     ));
 
   for (const task of inProgressTasks) {
+    // Preserve streaming output as a comment before clearing
+    const output = getTaskOutput(task.id);
+    if (output && output.length > 0) {
+      try {
+        await db.insert(issueComments).values({
+          companyId: task.companyId,
+          issueId: task.id,
+          body: `(정지 시점 작업 내역)\n${output.slice(0, 2000)}`,
+          createdByAgentId: task.assigneeAgentId,
+        });
+      } catch { /* ignore */ }
+    }
+
     await db
       .update(issues)
       .set({

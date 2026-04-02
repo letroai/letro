@@ -1,7 +1,7 @@
 // server/src/services/workspace.service.ts
 import { eq } from "drizzle-orm";
 import { executionWorkspaces } from "@letro/db/schema";
-import { mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { resolve, join, extname, relative } from "node:path";
 import type { ServiceDependencies } from "./index.js";
 
@@ -62,6 +62,16 @@ export class WorkspaceService {
   async createForProject(companyId: string, projectId: string): Promise<{ id: string; path: string }> {
     const wsPath = resolve(this.config.workspacesDir, projectId);
     await mkdir(wsPath, { recursive: true });
+
+    // Write a CLAUDE.md to constrain agent behavior within this workspace
+    const claudeMd = `# Workspace Rules
+
+- This is the project workspace. ALL files must be created here.
+- Use RELATIVE paths only (e.g., "src/app.ts", not "/home/.../app.ts").
+- Do NOT create files outside this directory.
+- Do NOT modify files in parent directories.
+`;
+    await writeFile(join(wsPath, "CLAUDE.md"), claudeMd, "utf-8");
 
     const [ws] = await this.db
       .insert(executionWorkspaces)

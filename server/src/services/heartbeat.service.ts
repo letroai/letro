@@ -387,26 +387,38 @@ export class HeartbeatService {
       timestamp: new Date().toISOString(),
     });
 
-    // 2. Look up workspace and resolve secrets
+    // 2. Look up workspace (required for execution)
     const workspace = this.workspaceService
       ? await this.workspaceService.getByProjectId(task.projectId!)
       : null;
+
+    if (!workspace) {
+      this.logger.error({ memberId: agent.id, taskId: task.id }, "No workspace found — cannot execute task without workspace");
+      return;
+    }
 
     const secretEnv = this.secretService
       ? await this.secretService.resolveEnvBindings(agent.companyId)
       : {};
 
-    // 3. Execute task via Claude CLI in workspace (or fallback to LLM-only)
+    // 3. Execute task via Claude CLI in workspace
     try {
       clearTaskOutput(task.id);
 
-      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer. You MUST create actual files using the Write tool. Do NOT just describe what you would do — actually implement it by writing real files.`;
-      const taskPrompt = `Implement the following task by creating actual files and code in the current working directory. Use the Write tool to create each file. Do not explain — just build it.
+      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer. You MUST create actual files using the Write tool.
+
+CRITICAL RULES:
+- Your working directory is: ${workspace.path}
+- ALL files MUST be created inside this directory. NEVER write files outside it.
+- Use relative paths (e.g., "src/app.ts") not absolute paths.
+- Do NOT just describe what you would do — actually create the files.`;
+
+      const taskPrompt = `Implement the following task. Create real files in the current directory using the Write tool. Use relative paths only.
 
 Task: ${task.title}
 Description: ${task.description ?? "No additional details"}
 
-After creating all files, write a brief one-paragraph summary of what you built.`;
+After creating all files, write a one-paragraph summary of what you built.`;
 
       const onChunk = (chunk: string) => {
         appendTaskOutput(task.id, chunk);
@@ -418,14 +430,13 @@ After creating all files, write a brief one-paragraph summary of what you built.
         });
       };
 
+      const opts: { cwd?: string; env?: Record<string, string> } = { cwd: workspace.path };
       const hasSecrets = Object.keys(secretEnv).length > 0;
-      const opts: { cwd?: string; env?: Record<string, string> } = {};
-      if (workspace) opts.cwd = workspace.path;
       if (hasSecrets) opts.env = secretEnv;
       const response = await callLLMStreaming(
         { system: systemPrompt, prompt: taskPrompt },
         onChunk,
-        (workspace || hasSecrets) ? opts : undefined,
+        opts,
       );
       const summary = response.content.slice(0, 2000);
 
