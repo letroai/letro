@@ -12,9 +12,10 @@ import {
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
-import { callLLM } from "../lib/llm-client.js";
+import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
+import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
 
 /**
  * Heartbeat service — Letro's core execution engine.
@@ -330,9 +331,11 @@ export class HeartbeatService {
       timestamp: new Date().toISOString(),
     });
 
-    // 2. Call Claude CLI to "execute" the task
+    // 2. Call Claude CLI to "execute" the task (with real-time streaming)
     try {
-      const response = await callLLM({
+      clearTaskOutput(task.id);
+
+      const response = await callLLMStreaming({
         system: agent.systemPrompt ?? `You are ${agent.name}, a software developer.`,
         prompt: `You are working on the following task. Analyze it carefully based on your expertise and describe what you would implement.
 
@@ -345,6 +348,14 @@ Respond with a JSON object:
   "details": "Technical details of the approach",
   "completed": true
 }`,
+      }, (chunk) => {
+        appendTaskOutput(task.id, chunk);
+        publishLiveEvent(agent.companyId, {
+          type: "task:output",
+          taskId: task.id,
+          agentId: agent.id,
+          chunk,
+        });
       });
 
       // 3. Parse Claude's response

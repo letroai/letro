@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { queryKeys } from "@/api/queryKeys";
@@ -6,6 +6,7 @@ import {
   getTask,
   getComments,
   addComment,
+  getTaskOutput,
   type Task,
   type Comment,
 } from "@/api/issues";
@@ -21,6 +22,7 @@ import {
   Loader2,
   Clock,
   AlertTriangle,
+  Terminal,
 } from "lucide-react";
 
 export default function TaskDetail() {
@@ -89,6 +91,8 @@ export default function TaskDetail() {
     );
   }
 
+  const isInProgress = task.status === "in_progress";
+
   return (
     <div>
       <ProjectHeader title={task.title} />
@@ -128,6 +132,11 @@ export default function TaskDetail() {
             </div>
           </div>
         </div>
+
+        {/* Live Output (only when task is in progress) */}
+        {isInProgress && (
+          <LiveTaskOutput projectId={projectId!} taskId={taskId!} />
+        )}
 
         {/* Comment Thread */}
         <section className="space-y-4">
@@ -193,6 +202,83 @@ export default function TaskDetail() {
         </section>
       </div>
     </div>
+  );
+}
+
+/* ── Live Task Output ──────────────────────────────────────────── */
+
+function LiveTaskOutput({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
+  const [output, setOutput] = useState("");
+  const containerRef = useRef<HTMLPreElement>(null);
+  const shouldAutoScroll = useRef(true);
+
+  // Track if user has scrolled up
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    shouldAutoScroll.current = isAtBottom;
+  }, []);
+
+  // Fetch accumulated output on mount
+  useEffect(() => {
+    getTaskOutput(projectId, taskId).then((data) => {
+      if (data.output) setOutput(data.output);
+    }).catch(() => {});
+  }, [projectId, taskId]);
+
+  // Listen for streaming chunks via WebSocket
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const data = JSON.parse((e as MessageEvent).data) as Record<string, unknown>;
+      if (data["type"] === "task:output" && data["taskId"] === taskId) {
+        setOutput((prev) => prev + (data["chunk"] as string));
+      }
+    };
+
+    window.addEventListener("letro-ws-message", handler);
+    return () => window.removeEventListener("letro-ws-message", handler);
+  }, [taskId]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (shouldAutoScroll.current && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [output]);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Terminal className="w-4 h-4 text-[var(--text-muted)]" />
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">
+          실시간 작업 출력
+        </h3>
+        <span className="inline-flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
+          </span>
+          진행 중
+        </span>
+      </div>
+
+      <pre
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="max-h-[480px] overflow-y-auto rounded-xl border border-[var(--border-default)] bg-gray-950 p-4 text-sm text-gray-200 font-mono leading-relaxed whitespace-pre-wrap break-words"
+      >
+        {output || (
+          <span className="text-gray-500">팀원이 작업을 준비하고 있어요...</span>
+        )}
+      </pre>
+    </section>
   );
 }
 

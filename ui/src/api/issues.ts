@@ -76,6 +76,15 @@ export function getComments(
   return api.get<Comment[]>(`/projects/${projectId}/tasks/${taskId}/comments`);
 }
 
+export function getTaskOutput(
+  projectId: string,
+  taskId: string,
+): Promise<{ output: string }> {
+  return api.get<{ output: string }>(
+    `/projects/${projectId}/tasks/${taskId}/output`,
+  );
+}
+
 export function addComment(
   projectId: string,
   taskId: string,
