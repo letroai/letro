@@ -18,6 +18,7 @@ export interface CreateIdeaInput {
 
 export interface ActivateIdeaInput {
   confirmed: true;
+  locale?: "ko" | "en";
 }
 
 export function createIdea(input: CreateIdeaInput): Promise<Idea> {

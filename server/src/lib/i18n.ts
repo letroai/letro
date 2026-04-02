@@ -4,12 +4,11 @@
 
 export type Locale = "ko" | "en";
 
-const KOREAN_RE = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+const KOREAN_RE = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g;
 
 /** Detects locale from text. Korean chars → "ko", else "en". */
 export function detectLocale(text: string): Locale {
   const koreanChars = (text.match(KOREAN_RE) || []).length;
-  // If more than 2 Korean characters, treat as Korean
   return koreanChars >= 2 ? "ko" : "en";
 }
 

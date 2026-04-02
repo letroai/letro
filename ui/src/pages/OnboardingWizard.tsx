@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -75,14 +75,17 @@ export default function OnboardingWizard() {
     },
   });
 
-  if (step === "analyzing" && idea && (idea.status === "analyzed" || idea.status === "structured")) {
-    setStep("review");
-    // Detect locale from idea structured data
-    const detectedLocale = (idea.structured as Record<string, unknown> | null)?.locale as string;
-    if (detectedLocale === "ko" || detectedLocale === "en") {
-      setLocale(detectedLocale);
+  // Transition to review when idea is analyzed
+  useEffect(() => {
+    if (step === "analyzing" && idea && (idea.status === "analyzed" || idea.status === "structured")) {
+      // Detect locale from idea structured data
+      const detectedLocale = (idea.structured as Record<string, unknown> | null)?.locale as string;
+      if (detectedLocale === "ko" || detectedLocale === "en") {
+        setLocale(detectedLocale);
+      }
+      setStep("review");
     }
-  }
+  }, [step, idea]);
 
   const handleSubmit = useCallback(() => {
     if (!rawInput.trim()) return;
