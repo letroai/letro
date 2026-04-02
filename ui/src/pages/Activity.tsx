@@ -22,9 +22,11 @@ import {
   User,
   Cog,
 } from "lucide-react";
+import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Activity() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { locale } = useLocale();
 
   const {
     data,
@@ -40,7 +42,7 @@ export default function Activity() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title="활동 기록" />
+        <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -49,9 +51,9 @@ export default function Activity() {
   if (error) {
     return (
       <div>
-        <ProjectHeader title="활동 기록" />
+        <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
         <SimpleErrorMessage
-          message="활동 기록을 불러올 수 없어요."
+          message={locale === "ko" ? "활동 기록을 불러올 수 없어요." : "Failed to load activity."}
           onRetry={() => refetch()}
         />
       </div>
@@ -62,13 +64,13 @@ export default function Activity() {
 
   return (
     <div>
-      <ProjectHeader title="활동 기록" />
+      <ProjectHeader title={locale === "ko" ? "활동 기록" : "Activity"} />
 
       <div className="p-6">
         {items.length === 0 ? (
           <EmptyState
             icon={ActivityIcon}
-            message="아직 활동 기록이 없어요."
+            message={locale === "ko" ? "아직 활동 기록이 없어요." : "No activity yet."}
           />
         ) : (
           <div className="space-y-1">
@@ -144,20 +146,23 @@ function activityTypeIcon(type: ActivityItem["type"]) {
 }
 
 function ActivityTypeBadge({ type }: { type: ActivityItem["type"] }) {
+  const { locale } = useLocale();
   const config: Record<
     ActivityItem["type"],
-    { label: string; variant: "default" | "success" | "warning" | "danger" }
+    { ko: string; en: string; variant: "default" | "success" | "warning" | "danger" }
   > = {
-    task_created: { label: "작업 생성", variant: "default" },
-    task_completed: { label: "작업 완료", variant: "success" },
-    agent_hired: { label: "팀원 고용", variant: "default" },
-    agent_fired: { label: "팀원 해고", variant: "warning" },
-    goal_completed: { label: "목표 달성", variant: "success" },
-    approval_requested: { label: "확인 요청", variant: "warning" },
-    error_occurred: { label: "오류", variant: "danger" },
-    cost_alert: { label: "비용 알림", variant: "warning" },
+    task_created: { ko: "작업 생성", en: "Task Created", variant: "default" },
+    task_completed: { ko: "작업 완료", en: "Task Done", variant: "success" },
+    agent_hired: { ko: "팀원 고용", en: "Member Hired", variant: "default" },
+    agent_fired: { ko: "팀원 해고", en: "Member Fired", variant: "warning" },
+    goal_completed: { ko: "목표 달성", en: "Goal Done", variant: "success" },
+    approval_requested: { ko: "확인 요청", en: "Approval", variant: "warning" },
+    error_occurred: { ko: "오류", en: "Error", variant: "danger" },
+    cost_alert: { ko: "비용 알림", en: "Cost Alert", variant: "warning" },
   };
 
-  const info = config[type] ?? { label: type, variant: "default" as const };
-  return <Badge variant={info.variant}>{info.label}</Badge>;
+  const entry = config[type];
+  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : type;
+  const variant = entry?.variant ?? "default" as const;
+  return <Badge variant={variant}>{label}</Badge>;
 }

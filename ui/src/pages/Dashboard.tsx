@@ -16,10 +16,12 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
+import { useLocale } from "@/providers/LocaleProvider";
 
 export default function Dashboard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { locale } = useLocale();
 
   const {
     data: dashboard,
@@ -35,7 +37,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title="홈" />
+        <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -44,9 +46,9 @@ export default function Dashboard() {
   if (error || !dashboard) {
     return (
       <div>
-        <ProjectHeader title="홈" />
+        <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
         <SimpleErrorMessage
-          message="대시보드 정보를 불러올 수 없어요."
+          message={locale === "ko" ? "대시보드 정보를 불러올 수 없어요." : "Failed to load dashboard."}
           onRetry={() => refetch()}
         />
       </div>
@@ -62,32 +64,32 @@ export default function Dashboard() {
 
   return (
     <div>
-      <ProjectHeader title="홈" />
+      <ProjectHeader title={locale === "ko" ? "홈" : "Dashboard"} />
 
       <div className="p-6 space-y-6">
         {/* Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard
             icon={Users}
-            label="팀원"
-            value={`${activeAgents}명`}
+            label={locale === "ko" ? "팀원" : "Members"}
+            value={locale === "ko" ? `${activeAgents}명` : `${activeAgents}`}
             color="primary"
           />
           <MetricCard
             icon={Play}
-            label="진행 중"
-            value={`${inProgressIssues}개`}
+            label={locale === "ko" ? "진행 중" : "In Progress"}
+            value={locale === "ko" ? `${inProgressIssues}개` : `${inProgressIssues}`}
             color="warning"
           />
           <MetricCard
             icon={CheckCircle2}
-            label="완료"
-            value={`${completedIssues}개`}
+            label={locale === "ko" ? "완료" : "Done"}
+            value={locale === "ko" ? `${completedIssues}개` : `${completedIssues}`}
             color="success"
           />
           <MetricCard
             icon={DollarSign}
-            label="이번 달"
+            label={locale === "ko" ? "이번 달" : "This Month"}
             value={formatCost(monthlyCostCents)}
             color="default"
           />
@@ -101,13 +103,13 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                도움이 필요해요
+                {locale === "ko" ? "도움이 필요해요" : "Help Needed"}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/help`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                전체 보기
+                {locale === "ko" ? "전체 보기" : "View All"}
               </button>
             </div>
             <div className="space-y-2">
@@ -119,7 +121,7 @@ export default function Dashboard() {
                   <AlertCircle className="w-5 h-5 text-warning-500 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {String(req["taskTitle"] ?? req["title"] ?? "도움 요청")}
+                      {String(req["taskTitle"] ?? req["title"] ?? (locale === "ko" ? "도움 요청" : "Help Request"))}
                     </p>
                     <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-2">
                       {String(req["message"] ?? req["description"] ?? "")}
@@ -139,21 +141,22 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                팀 활동
+                {locale === "ko" ? "팀 활동" : "Team Activity"}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/team`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                팀 보기
+                {locale === "ko" ? "팀 보기" : "View Team"}
               </button>
             </div>
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-[var(--text-muted)]" />
                 <p className="text-sm text-[var(--text-secondary)]">
-                  현재 팀원 {activeAgents}명이 {inProgressIssues}개의
-                  작업을 진행하고 있어요.
+                  {locale === "ko"
+                    ? `현재 팀원 ${activeAgents}명이 ${inProgressIssues}개의 작업을 진행하고 있어요.`
+                    : `${activeAgents} member(s) working on ${inProgressIssues} task(s).`}
                 </p>
               </div>
             </div>
@@ -165,13 +168,13 @@ export default function Dashboard() {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                최근 활동
+                {locale === "ko" ? "최근 활동" : "Recent Activity"}
               </h2>
               <button
                 onClick={() => navigate(`/p/${projectId}/activity`)}
                 className="text-sm text-primary-500 hover:text-primary-600 font-medium transition-colors"
               >
-                전체 보기
+                {locale === "ko" ? "전체 보기" : "View All"}
               </button>
             </div>
             <div className="space-y-1">
@@ -233,15 +236,16 @@ function MetricCard({ icon: Icon, label, value, color }: MetricCardProps) {
 }
 
 function ActivityTypeBadge({ type }: { type: string }) {
+  const { locale } = useLocale();
   const labelMap: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" }> = {
-    task_created: { label: "작업", variant: "default" },
-    task_completed: { label: "완료", variant: "success" },
-    agent_hired: { label: "고용", variant: "default" },
-    agent_fired: { label: "해고", variant: "warning" },
-    goal_completed: { label: "목표", variant: "success" },
-    approval_requested: { label: "확인", variant: "warning" },
-    error_occurred: { label: "오류", variant: "danger" },
-    cost_alert: { label: "비용", variant: "warning" },
+    task_created: { label: locale === "ko" ? "작업" : "Task", variant: "default" },
+    task_completed: { label: locale === "ko" ? "완료" : "Done", variant: "success" },
+    agent_hired: { label: locale === "ko" ? "고용" : "Hired", variant: "default" },
+    agent_fired: { label: locale === "ko" ? "해고" : "Fired", variant: "warning" },
+    goal_completed: { label: locale === "ko" ? "목표" : "Goal", variant: "success" },
+    approval_requested: { label: locale === "ko" ? "확인" : "Approval", variant: "warning" },
+    error_occurred: { label: locale === "ko" ? "오류" : "Error", variant: "danger" },
+    cost_alert: { label: locale === "ko" ? "비용" : "Cost", variant: "warning" },
   };
 
   const info = labelMap[type] ?? { label: type, variant: "default" as const };

@@ -3,29 +3,39 @@ import { Home, CheckSquare, Users, FolderOpen, MoreHorizontal } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { MobileMoreSheet } from "./MobileMoreSheet";
+import { useLocale } from "@/providers/LocaleProvider";
 
-const tabs = [
-  { label: "홈", icon: Home, path: "home" },
-  { label: "작업", icon: CheckSquare, path: "tasks" },
-  { label: "팀", icon: Users, path: "team" },
-  { label: "결과", icon: FolderOpen, path: "results" },
-] as const;
+interface TabDef {
+  ko: string;
+  en: string;
+  icon: typeof Home;
+  path: string;
+}
+
+const tabs: TabDef[] = [
+  { ko: "홈", en: "Home", icon: Home, path: "home" },
+  { ko: "작업", en: "Tasks", icon: CheckSquare, path: "tasks" },
+  { ko: "팀", en: "Team", icon: Users, path: "team" },
+  { ko: "결과", en: "Results", icon: FolderOpen, path: "results" },
+];
 
 export function MobileBottomNav() {
   const { projectId } = useParams();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
+  const { locale } = useLocale();
 
   return (
     <>
       <nav
         className="flex items-center justify-around h-14 border-t border-[var(--border-default)] bg-[var(--bg-app)] safe-area-pb"
         role="tablist"
-        aria-label="주요 메뉴"
+        aria-label={locale === "ko" ? "주요 메뉴" : "Main menu"}
       >
-        {tabs.map(({ label, icon: Icon, path }) => {
+        {tabs.map(({ ko, en, icon: Icon, path }) => {
           const fullPath = `/p/${projectId}/${path}`;
           const isActive = location.pathname.startsWith(fullPath);
+          const label = locale === "ko" ? ko : en;
 
           return (
             <Link
@@ -50,10 +60,10 @@ export function MobileBottomNav() {
           onClick={() => setMoreOpen(true)}
           className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 text-[11px] text-[var(--text-muted)]"
           role="tab"
-          aria-label="더보기"
+          aria-label={locale === "ko" ? "더보기" : "More"}
         >
           <MoreHorizontal className="w-5 h-5" />
-          <span>더보기</span>
+          <span>{locale === "ko" ? "더보기" : "More"}</span>
         </button>
       </nav>
 

@@ -7,6 +7,7 @@ import {
   type FileNode,
   type FileContent,
 } from "@/api/results";
+import { useLocale } from "@/providers/LocaleProvider";
 import { ProjectHeader } from "@/components/layout/ProjectHeader";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { SimpleErrorMessage } from "@/components/shared/SimpleErrorMessage";
@@ -25,6 +26,7 @@ import {
 
 export default function OutputBrowser() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { locale } = useLocale();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -65,7 +67,7 @@ export default function OutputBrowser() {
   if (treeLoading) {
     return (
       <div>
-        <ProjectHeader title="결과물" />
+        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -74,9 +76,9 @@ export default function OutputBrowser() {
   if (treeError) {
     return (
       <div>
-        <ProjectHeader title="결과물" />
+        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
         <SimpleErrorMessage
-          message="결과물을 불러올 수 없어요."
+          message={locale === "ko" ? "결과물을 불러올 수 없어요." : "Failed to load outputs."}
           onRetry={() => refetchTree()}
         />
       </div>
@@ -88,10 +90,10 @@ export default function OutputBrowser() {
   if (allNodes.length === 0) {
     return (
       <div>
-        <ProjectHeader title="결과물" />
+        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
         <EmptyState
           icon={FolderOpen}
-          message="아직 결과물이 없어요. 작업이 완료되면 여기에 나타나요."
+          message={locale === "ko" ? "아직 결과물이 없어요. 작업이 완료되면 여기에 나타나요." : "No outputs yet. They will appear here when tasks are completed."}
         />
       </div>
     );
@@ -101,7 +103,7 @@ export default function OutputBrowser() {
   if (isMobile) {
     return (
       <div>
-        <ProjectHeader title="결과물" />
+        <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
         {showPreview && selectedPath ? (
           <div>
             <button
@@ -109,7 +111,7 @@ export default function OutputBrowser() {
               className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-primary-500 hover:text-primary-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              파일 목록으로
+              {locale === "ko" ? "파일 목록으로" : "Back to file list"}
             </button>
             <FilePreview
               content={fileContent ?? null}
@@ -133,7 +135,7 @@ export default function OutputBrowser() {
   // Desktop: two-column layout
   return (
     <div>
-      <ProjectHeader title="결과물" />
+      <ProjectHeader title={locale === "ko" ? "결과물" : "Outputs"} />
       <div className="flex h-[calc(100dvh-57px)]">
         {/* Left: File tree */}
         <div className="w-64 shrink-0 border-r border-[var(--border-default)] overflow-y-auto p-4">
@@ -154,7 +156,7 @@ export default function OutputBrowser() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-sm text-[var(--text-muted)]">
-                왼쪽에서 파일을 선택하세요.
+                {locale === "ko" ? "왼쪽에서 파일을 선택하세요." : "Select a file from the left."}
               </p>
             </div>
           )}
@@ -264,13 +266,15 @@ function FilePreview({
   isLoading: boolean;
   error: Error | null;
 }) {
+  const { locale } = useLocale();
+
   if (isLoading) {
     return <PageSkeleton variant="content" />;
   }
 
   if (error) {
     return (
-      <SimpleErrorMessage message="파일을 불러올 수 없어요." />
+      <SimpleErrorMessage message={locale === "ko" ? "파일을 불러올 수 없어요." : "Failed to load file."} />
     );
   }
 

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { queryKeys } from "@/api/queryKeys";
 import { getAgent, type AgentDetail } from "@/api/agents";
 import { listTasks, type Task } from "@/api/issues";
+import { useLocale } from "@/providers/LocaleProvider";
 import { ProjectHeader } from "@/components/layout/ProjectHeader";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { SimpleErrorMessage } from "@/components/shared/SimpleErrorMessage";
@@ -25,6 +26,8 @@ export default function TeamMemberDetail() {
     memberId: string;
   }>();
 
+  const { locale } = useLocale();
+
   const {
     data: agent,
     isLoading,
@@ -45,7 +48,7 @@ export default function TeamMemberDetail() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title="팀원" />
+        <ProjectHeader title={locale === "ko" ? "팀원" : "Member"} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -54,9 +57,9 @@ export default function TeamMemberDetail() {
   if (error || !agent) {
     return (
       <div>
-        <ProjectHeader title="팀원" />
+        <ProjectHeader title={locale === "ko" ? "팀원" : "Member"} />
         <SimpleErrorMessage
-          message="팀원 정보를 불러올 수 없어요."
+          message={locale === "ko" ? "팀원 정보를 불러올 수 없어요." : "Could not load member info."}
           onRetry={() => refetch()}
         />
       </div>
@@ -64,7 +67,7 @@ export default function TeamMemberDetail() {
   }
 
   const isLeader = agent.teamRole === "leader";
-  const roleLabel = isLeader ? "팀장" : "팀원";
+  const roleLabel = isLeader ? (locale === "ko" ? "팀장" : "Leader") : (locale === "ko" ? "팀원" : "Member");
   const assignedTasks = tasks ?? [];
   const inProgressTasks = assignedTasks.filter(
     (t) => t.status === "in_progress",

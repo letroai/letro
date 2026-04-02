@@ -26,6 +26,7 @@ import {
   Code,
   ChevronRight,
 } from "lucide-react";
+import { useLocale } from "@/providers/LocaleProvider";
 
 export default function TaskDetail() {
   const { projectId, taskId } = useParams<{
@@ -33,6 +34,7 @@ export default function TaskDetail() {
     taskId: string;
   }>();
   const queryClient = useQueryClient();
+  const { locale } = useLocale();
   const [commentText, setCommentText] = useState("");
 
   const {
@@ -75,7 +77,7 @@ export default function TaskDetail() {
   if (taskLoading) {
     return (
       <div>
-        <ProjectHeader title="작업" />
+        <ProjectHeader title={locale === "ko" ? "작업" : "Task"} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -84,9 +86,9 @@ export default function TaskDetail() {
   if (taskError || !task) {
     return (
       <div>
-        <ProjectHeader title="작업" />
+        <ProjectHeader title={locale === "ko" ? "작업" : "Task"} />
         <SimpleErrorMessage
-          message="작업 정보를 불러올 수 없어요."
+          message={locale === "ko" ? "작업 정보를 불러올 수 없어요." : "Failed to load task."}
           onRetry={() => refetchTask()}
         />
       </div>
@@ -126,11 +128,11 @@ export default function TaskDetail() {
             )}
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>생성: {formatTimeAgo(task.createdAt)}</span>
+              <span>{locale === "ko" ? "생성:" : "Created:"} {formatTimeAgo(task.createdAt)}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>수정: {formatTimeAgo(task.updatedAt)}</span>
+              <span>{locale === "ko" ? "수정:" : "Updated:"} {formatTimeAgo(task.updatedAt)}</span>
             </div>
           </div>
         </div>
@@ -143,20 +145,20 @@ export default function TaskDetail() {
         {/* Comment Thread */}
         <section className="space-y-4">
           <h3 className="text-base font-semibold text-[var(--text-primary)]">
-            대화
+            {locale === "ko" ? "대화" : "Conversation"}
           </h3>
 
           {commentsLoading ? (
             <PageSkeleton variant="list" />
           ) : commentsError ? (
-            <SimpleErrorMessage message="대화를 불러올 수 없어요." />
+            <SimpleErrorMessage message={locale === "ko" ? "대화를 불러올 수 없어요." : "Failed to load conversation."} />
           ) : (
             <>
               {/* Comment list */}
               <div className="space-y-3">
                 {(comments ?? []).length === 0 && (
                   <p className="text-sm text-[var(--text-muted)] text-center py-4">
-                    아직 대화가 없어요.
+                    {locale === "ko" ? "아직 대화가 없어요." : "No conversation yet."}
                   </p>
                 )}
                 {(comments ?? []).map((comment) => (
@@ -176,7 +178,7 @@ export default function TaskDetail() {
                       handleSubmitComment();
                     }
                   }}
-                  placeholder="메시지를 입력하세요..."
+                  placeholder={locale === "ko" ? "메시지를 입력하세요..." : "Type a message..."}
                   className="flex-1 rounded-lg border border-[var(--border-default)] bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-colors"
                 />
                 <button
@@ -196,7 +198,7 @@ export default function TaskDetail() {
               {commentMutation.error && (
                 <p className="text-xs text-danger-500 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  메시지를 보내지 못했어요. 다시 시도해 주세요.
+                  {locale === "ko" ? "메시지를 보내지 못했어요. 다시 시도해 주세요." : "Failed to send message. Please try again."}
                 </p>
               )}
             </>
@@ -218,6 +220,7 @@ function TaskOutput({
   taskId: string;
   isLive: boolean;
 }) {
+  const { locale } = useLocale();
   const [output, setOutput] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
@@ -262,7 +265,7 @@ function TaskOutput({
       <div className="flex items-center gap-2">
         <Terminal className="w-4 h-4 text-[var(--text-muted)]" />
         <h3 className="text-base font-semibold text-[var(--text-primary)]">
-          {isLive ? "실시간 작업 출력" : "작업 내역"}
+          {isLive ? (locale === "ko" ? "실시간 작업 출력" : "Live Task Output") : (locale === "ko" ? "작업 내역" : "Task Output")}
         </h3>
         {isLive && (
           <span className="inline-flex items-center gap-1.5 text-xs text-success-600 dark:text-success-400">
@@ -270,7 +273,7 @@ function TaskOutput({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
             </span>
-            진행 중
+            {locale === "ko" ? "진행 중" : "In Progress"}
           </span>
         )}
       </div>
@@ -284,7 +287,9 @@ function TaskOutput({
           <RefinedOutput text={output} />
         ) : (
           <span className="text-[var(--text-muted)]">
-            {isLive ? "팀원이 작업을 준비하고 있어요..." : "작업 내역이 없어요."}
+            {isLive
+              ? (locale === "ko" ? "팀원이 작업을 준비하고 있어요..." : "Team member is preparing...")
+              : (locale === "ko" ? "작업 내역이 없어요." : "No output available.")}
           </span>
         )}
       </div>
@@ -390,7 +395,7 @@ function CollapsedCodeBlock({ lang, content, lineCount }: { lang: string; conten
         <Code className="w-3.5 h-3.5 text-[var(--text-muted)]" />
         <span className="font-medium text-[var(--text-secondary)]">{lang}</span>
         <span className="text-[var(--text-muted)] truncate flex-1">{preview}{preview.length >= 60 ? "..." : ""}</span>
-        <span className="text-[var(--text-muted)] shrink-0">{lineCount}줄</span>
+        <span className="text-[var(--text-muted)] shrink-0">{lineCount} {lineCount === 1 ? "line" : "lines"}</span>
       </button>
       {open && (
         <pre className="px-3 py-2 border-t border-[var(--border-default)] bg-gray-950 text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
@@ -447,31 +452,37 @@ function CommentBubble({ comment }: { comment: Comment }) {
 }
 
 function TaskStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" | "outline" }> = {
-    open: { label: "대기 중", variant: "outline" },
-    backlog: { label: "대기 중", variant: "outline" },
-    todo: { label: "대기 중", variant: "outline" },
-    in_progress: { label: "진행 중", variant: "default" },
-    review: { label: "검토 중", variant: "warning" },
-    in_review: { label: "검토 중", variant: "warning" },
-    done: { label: "완료", variant: "success" },
-    blocked: { label: "차단됨", variant: "danger" },
-    cancelled: { label: "취소", variant: "outline" },
+  const { locale } = useLocale();
+  const config: Record<string, { ko: string; en: string; variant: "default" | "success" | "warning" | "danger" | "outline" }> = {
+    open: { ko: "대기 중", en: "Waiting", variant: "outline" },
+    backlog: { ko: "대기 중", en: "Waiting", variant: "outline" },
+    todo: { ko: "대기 중", en: "Waiting", variant: "outline" },
+    in_progress: { ko: "진행 중", en: "In Progress", variant: "default" },
+    review: { ko: "검토 중", en: "In Review", variant: "warning" },
+    in_review: { ko: "검토 중", en: "In Review", variant: "warning" },
+    done: { ko: "완료", en: "Done", variant: "success" },
+    blocked: { ko: "차단됨", en: "Blocked", variant: "danger" },
+    cancelled: { ko: "취소", en: "Cancelled", variant: "outline" },
   };
 
-  const { label, variant } = config[status] ?? { label: status, variant: "outline" as const };
+  const entry = config[status];
+  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : status;
+  const variant = entry?.variant ?? "outline" as const;
   return <Badge variant={variant}>{label}</Badge>;
 }
 
 function TaskPriorityBadge({ priority }: { priority: string }) {
-  const config: Record<string, { label: string; variant: "default" | "warning" | "danger" | "outline" }> = {
-    low: { label: "낮음", variant: "outline" },
-    medium: { label: "보통", variant: "default" },
-    high: { label: "높음", variant: "warning" },
-    urgent: { label: "긴급", variant: "danger" },
-    critical: { label: "긴급", variant: "danger" },
+  const { locale } = useLocale();
+  const config: Record<string, { ko: string; en: string; variant: "default" | "warning" | "danger" | "outline" }> = {
+    low: { ko: "낮음", en: "Low", variant: "outline" },
+    medium: { ko: "보통", en: "Medium", variant: "default" },
+    high: { ko: "높음", en: "High", variant: "warning" },
+    urgent: { ko: "긴급", en: "Urgent", variant: "danger" },
+    critical: { ko: "긴급", en: "Critical", variant: "danger" },
   };
 
-  const { label, variant } = config[priority] ?? { label: priority, variant: "outline" as const };
+  const entry = config[priority];
+  const label = entry ? (locale === "ko" ? entry.ko : entry.en) : priority;
+  const variant = entry?.variant ?? "outline" as const;
   return <Badge variant={variant}>{label}</Badge>;
 }

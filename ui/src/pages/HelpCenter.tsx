@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { queryKeys } from "@/api/queryKeys";
 import { getDashboard, type DashboardData, type HelpRequest } from "@/api/dashboard";
+import { useLocale } from "@/providers/LocaleProvider";
 import { ProjectHeader } from "@/components/layout/ProjectHeader";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { SimpleErrorMessage } from "@/components/shared/SimpleErrorMessage";
@@ -16,6 +17,7 @@ import {
 
 export default function HelpCenter() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { locale } = useLocale();
   const navigate = useNavigate();
 
   const {
@@ -32,7 +34,7 @@ export default function HelpCenter() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title="도움이 필요한 것" />
+        <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
         <PageSkeleton variant="list" />
       </div>
     );
@@ -41,9 +43,9 @@ export default function HelpCenter() {
   if (error || !dashboard) {
     return (
       <div>
-        <ProjectHeader title="도움이 필요한 것" />
+        <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
         <SimpleErrorMessage
-          message="정보를 불러올 수 없어요."
+          message={locale === "ko" ? "정보를 불러올 수 없어요." : "Failed to load information."}
           onRetry={() => refetch()}
         />
       </div>
@@ -54,20 +56,22 @@ export default function HelpCenter() {
 
   return (
     <div>
-      <ProjectHeader title="도움이 필요한 것" />
+      <ProjectHeader title={locale === "ko" ? "도움이 필요한 것" : "Help Requests"} />
 
       <div className="p-6 space-y-4">
         {helpRequests.length === 0 ? (
           <div className="space-y-4">
             <EmptyState
               icon={CheckCircle2}
-              message="지금은 도움이 필요한 것이 없어요. 팀이 잘 진행하고 있어요!"
+              message={locale === "ko" ? "지금은 도움이 필요한 것이 없어요. 팀이 잘 진행하고 있어요!" : "No help needed right now. The team is doing great!"}
             />
           </div>
         ) : (
           <>
             <p className="text-sm text-[var(--text-secondary)]">
-              팀원이 진행하다가 결정이 필요하거나 도움이 필요할 때 여기에 나타나요.
+              {locale === "ko"
+                ? "팀원이 진행하다가 결정이 필요하거나 도움이 필요할 때 여기에 나타나요."
+                : "When a team member needs a decision or help while working, it appears here."}
             </p>
             <div className="space-y-3">
               {helpRequests.map((request, idx) => (
@@ -79,7 +83,7 @@ export default function HelpCenter() {
                   <MessageSquare className="w-5 h-5 text-warning-500 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {String(request["title"] ?? request["taskTitle"] ?? "도움 요청")}
+                      {String(request["title"] ?? request["taskTitle"] ?? (locale === "ko" ? "도움 요청" : "Help Request"))}
                     </p>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
                       {String(request["message"] ?? request["description"] ?? "")}

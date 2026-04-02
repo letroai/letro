@@ -13,10 +13,12 @@ import {
   CheckSquare,
   AlertTriangle,
 } from "lucide-react";
+import { useLocale } from "@/providers/LocaleProvider";
 
 export default function ProjectSettings() {
   const { projectId } = useParams<{ projectId: string }>();
   const queryClient = useQueryClient();
+  const { locale } = useLocale();
 
   const {
     data: project,
@@ -64,7 +66,7 @@ export default function ProjectSettings() {
   if (isLoading) {
     return (
       <div>
-        <ProjectHeader title="설정" />
+        <ProjectHeader title={locale === "ko" ? "설정" : "Settings"} />
         <PageSkeleton variant="content" />
       </div>
     );
@@ -73,8 +75,8 @@ export default function ProjectSettings() {
   if (error || !project) {
     return (
       <div>
-        <ProjectHeader title="설정" />
-        <SimpleErrorMessage message="프로젝트 정보를 불러올 수 없어요." />
+        <ProjectHeader title={locale === "ko" ? "설정" : "Settings"} />
+        <SimpleErrorMessage message={locale === "ko" ? "프로젝트 정보를 불러올 수 없어요." : "Failed to load project settings."} />
       </div>
     );
   }
@@ -85,13 +87,13 @@ export default function ProjectSettings() {
 
   return (
     <div>
-      <ProjectHeader title="설정" />
+      <ProjectHeader title={locale === "ko" ? "설정" : "Settings"} />
 
       <div className="p-6 space-y-6 max-w-2xl">
         {/* Project Control */}
         <section className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] p-5 space-y-4">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">
-            프로젝트 제어
+            {locale === "ko" ? "프로젝트 제어" : "Project Control"}
           </h2>
 
           {/* Status display */}
@@ -113,13 +115,13 @@ export default function ProjectSettings() {
                   }`}
                 />
               </span>
-              {isPaused ? "정지됨" : "진행 중"}
+              {isPaused ? (locale === "ko" ? "정지됨" : "Paused") : (locale === "ko" ? "진행 중" : "Running")}
             </div>
 
             {!isPaused && team && (
               <span className="text-sm text-[var(--text-muted)]">
                 <Users className="w-3.5 h-3.5 inline mr-1" />
-                팀원 {activeMembers}명 활동 중
+                {locale === "ko" ? `팀원 ${activeMembers}명 활동 중` : `${activeMembers} member(s) active`}
               </span>
             )}
           </div>
@@ -127,8 +129,12 @@ export default function ProjectSettings() {
           {/* Description */}
           <p className="text-sm text-[var(--text-secondary)]">
             {isPaused
-              ? "프로젝트가 정지 상태예요. 팀장과 모든 팀원이 대기 중이에요. 재개하면 팀장이 현재 상황을 파악하고 작업을 다시 시작해요."
-              : "팀장이 작업을 관리하고 팀원들이 실행하고 있어요. 정지하면 모든 작업이 즉시 멈추고 진행 중인 작업은 대기 상태로 돌아가요."}
+              ? (locale === "ko"
+                ? "프로젝트가 정지 상태예요. 팀장과 모든 팀원이 대기 중이에요. 재개하면 팀장이 현재 상황을 파악하고 작업을 다시 시작해요."
+                : "Project is paused. The leader and all members are on standby. Resuming will let the leader assess the situation and restart work.")
+              : (locale === "ko"
+                ? "팀장이 작업을 관리하고 팀원들이 실행하고 있어요. 정지하면 모든 작업이 즉시 멈추고 진행 중인 작업은 대기 상태로 돌아가요."
+                : "The leader is managing tasks and members are executing. Pausing will stop all work immediately and reset in-progress tasks to waiting.")}
           </p>
 
           {/* Action button */}
@@ -143,7 +149,7 @@ export default function ProjectSettings() {
               ) : (
                 <Play className="w-4 h-4" />
               )}
-              프로젝트 재개
+              {locale === "ko" ? "프로젝트 재개" : "Resume Project"}
             </button>
           ) : (
             <button
@@ -156,7 +162,7 @@ export default function ProjectSettings() {
               ) : (
                 <Pause className="w-4 h-4" />
               )}
-              프로젝트 정지
+              {locale === "ko" ? "프로젝트 정지" : "Pause Project"}
             </button>
           )}
 
@@ -164,13 +170,17 @@ export default function ProjectSettings() {
           {pauseMutation.data && (
             <p className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
               <CheckSquare className="w-3.5 h-3.5" />
-              팀원 {pauseMutation.data.agentsPaused}명 정지, 작업 {pauseMutation.data.tasksReset}개 대기로 전환
+              {locale === "ko"
+                ? `팀원 ${pauseMutation.data.agentsPaused}명 정지, 작업 ${pauseMutation.data.tasksReset}개 대기로 전환`
+                : `${pauseMutation.data.agentsPaused} member(s) paused, ${pauseMutation.data.tasksReset} task(s) reset to waiting`}
             </p>
           )}
           {resumeMutation.data && (
             <p className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
               <CheckSquare className="w-3.5 h-3.5" />
-              팀원 {resumeMutation.data.membersResumed}명 재개, 팀장이 상황 파악 중...
+              {locale === "ko"
+                ? `팀원 ${resumeMutation.data.membersResumed}명 재개, 팀장이 상황 파악 중...`
+                : `${resumeMutation.data.membersResumed} member(s) resumed, leader is assessing...`}
             </p>
           )}
 
@@ -178,7 +188,7 @@ export default function ProjectSettings() {
           {(pauseMutation.error || resumeMutation.error) && (
             <p className="text-sm text-danger-500 flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
-              문제가 생겼어요. 다시 시도해 주세요.
+              {locale === "ko" ? "문제가 생겼어요. 다시 시도해 주세요." : "Something went wrong. Please try again."}
             </p>
           )}
         </section>
