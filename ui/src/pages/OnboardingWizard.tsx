@@ -38,6 +38,7 @@ export default function OnboardingWizard() {
   const [rawInput, setRawInput] = useState("");
   const [step, setStep] = useState<WizardStep>("input");
   const [ideaId, setIdeaId] = useState<string | null>(null);
+  const [locale, setLocale] = useState<"ko" | "en">("ko");
   const [copiedGuide, setCopiedGuide] = useState<string | null>(null);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
 
@@ -68,7 +69,7 @@ export default function OnboardingWizard() {
   });
 
   const activateMutation = useMutation({
-    mutationFn: (id: string) => activateIdea(id, { confirmed: true }),
+    mutationFn: (id: string) => activateIdea(id, { confirmed: true, locale }),
     onSuccess: (result) => {
       navigate(`/p/${result.projectId}/home`);
     },
@@ -76,6 +77,11 @@ export default function OnboardingWizard() {
 
   if (step === "analyzing" && idea && (idea.status === "analyzed" || idea.status === "structured")) {
     setStep("review");
+    // Detect locale from idea structured data
+    const detectedLocale = (idea.structured as Record<string, unknown> | null)?.locale as string;
+    if (detectedLocale === "ko" || detectedLocale === "en") {
+      setLocale(detectedLocale);
+    }
   }
 
   const handleSubmit = useCallback(() => {
@@ -386,6 +392,36 @@ export default function OnboardingWizard() {
                 <p className="text-xs font-medium text-[var(--text-muted)]">원래 아이디어</p>
                 <p className="text-sm text-[var(--text-secondary)] italic">
                   &ldquo;{idea.rawText}&rdquo;
+                </p>
+              </div>
+
+              {/* Language selector */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-[var(--text-muted)]">프로젝트 언어</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setLocale("ko")}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "ko"
+                        ? "bg-primary-500 text-white"
+                        : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    🇰🇷 한국어
+                  </button>
+                  <button
+                    onClick={() => setLocale("en")}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      locale === "en"
+                        ? "bg-primary-500 text-white"
+                        : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    }`}
+                  >
+                    🇺🇸 English
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {locale === "ko" ? "팀원들이 한국어로 작업하고 보고해요" : "Team members will work and report in English"}
                 </p>
               </div>
 

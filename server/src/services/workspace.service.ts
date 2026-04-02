@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 import type { ServiceDependencies } from "./index.js";
+import { ts, type Locale } from "../lib/i18n.js";
 
 export interface FileNode {
   name: string;
@@ -63,51 +64,49 @@ export class WorkspaceService {
   }
 
   /** Creates workspace directory and DB record for a project. */
-  async createForProject(companyId: string, projectId: string, projectName?: string, projectDescription?: string): Promise<{ id: string; path: string }> {
+  async createForProject(companyId: string, projectId: string, projectName?: string, projectDescription?: string, locale: Locale = "en"): Promise<{ id: string; path: string }> {
     const wsPath = resolve(this.config.workspacesDir, projectId);
     await mkdir(wsPath, { recursive: true });
 
-    // Write CLAUDE.md to constrain agent behavior within this workspace
-    const claudeMd = `# Workspace Rules
+    const L = (key: Parameters<typeof ts>[0]) => ts(key, locale);
 
-## 필수 규칙
-- ALL files must be created in this directory. Use RELATIVE paths only.
-- Do NOT create files outside this directory or modify parent directories.
+    const claudeMd = `# ${L("workspaceRules")}
 
-## 진행 현황 문서 → [PROGRESS.md](PROGRESS.md)
-- **작업 시작 전**: PROGRESS.md를 반드시 읽고 현재 상태를 파악하세요.
-- **작업 완료 후**: PROGRESS.md를 반드시 업데이트하세요.
-  - 완료된 작업 섹션에 자신의 작업 내용 추가
-  - 파일 구조 섹션 업데이트
-  - 아키텍처 결정사항이 있으면 기록
+## ${L("requiredRules")}
+- ${L("ruleFilesHere")}
+- ${L("ruleNoOutside")}
+
+## ${L("progressDoc")} → [PROGRESS.md](PROGRESS.md)
+- ${L("ruleReadProgress")}
+- ${L("ruleUpdateProgress")}
 `;
     await writeFile(join(wsPath, "CLAUDE.md"), claudeMd, "utf-8");
 
-    // Write PROGRESS.md — the living document that tracks project progress
-    const progressMd = `# ${projectName ?? "프로젝트"} 진행 현황
+    const name = projectName ?? (locale === "ko" ? "프로젝트" : "Project");
+    const progressMd = `# ${name} ${L("progressTitle")}
 
-## 프로젝트 목표
-${projectDescription ?? "(아직 정의되지 않음)"}
+## ${L("progressGoal")}
+${projectDescription ?? L("progressNone")}
 
-## 현재 상태
-- 프로젝트 시작됨
-- 아직 완료된 작업 없음
+## ${L("progressCurrentState")}
+- ${L("progressStarted")}
+- ${L("progressNoTasks")}
 
-## 완료된 작업
+## ${L("progressCompleted")}
 
-(없음)
+${L("progressNone")}
 
-## 진행 중인 작업
+## ${L("progressInProgress")}
 
-(없음)
+${L("progressNone")}
 
-## 아키텍처 결정사항
+## ${L("progressArchitecture")}
 
-(아직 없음)
+${L("progressNone")}
 
-## 파일 구조
+## ${L("progressFileStructure")}
 
-(아직 생성된 파일 없음)
+${L("progressNoFiles")}
 `;
     await writeFile(join(wsPath, "PROGRESS.md"), progressMd, "utf-8");
 

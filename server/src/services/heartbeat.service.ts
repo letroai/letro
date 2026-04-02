@@ -22,6 +22,7 @@ import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
 import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS, MAX_TOTAL_PENDING_TASKS } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { appendTaskOutput, clearTaskOutput, getTaskOutput } from "../lib/task-output-store.js";
+import { t, ts, type Locale } from "../lib/i18n.js";
 import { executionWorkspaces } from "@letro/db/schema";
 
 /**
@@ -69,6 +70,15 @@ export class HeartbeatService {
 
   setActivityLog(al: ActivityLogService) {
     this.activityLog = al;
+  }
+
+  /** Gets locale from project settings. */
+  private async getProjectLocale(projectId: string): Promise<Locale> {
+    const project = await this.db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+      columns: { settings: true },
+    });
+    return ((project?.settings as Record<string, unknown>)?.locale as Locale) ?? "en";
   }
 
   /** Publishes a live event AND persists it to activity_log. */
@@ -415,11 +425,14 @@ export class HeartbeatService {
       `Member executing task: ${task.title}`,
     );
 
+    const locale = await this.getProjectLocale(task.projectId!);
+    const startMsg = t("activityTaskStarted", locale);
+
     this.publishAndLog(agent.companyId, {
       type: "activity",
       agentName: agent.name,
       agentRole: "member",
-      message: `"${task.title}" 작업을 시작했어요`,
+      message: typeof startMsg === "function" ? startMsg(task.title) : startMsg,
     }, { agentId: agent.id, entityType: "issue", entityId: task.id });
 
     // 2. Look up workspace (required for execution)
@@ -440,26 +453,11 @@ export class HeartbeatService {
     try {
       clearTaskOutput(task.id);
 
-      const systemPrompt = agent.systemPrompt ?? `You are ${agent.name}, a software developer. You MUST create actual files using the Write tool.
+      const agentBase = t("agentSystemBase", locale);
+      const systemPrompt = agent.systemPrompt ?? ((typeof agentBase === "function" ? agentBase(agent.name) : agentBase) + `\n\nCRITICAL RULES:\n- Working directory: ${workspace.path}\n- Use relative paths only.\n- Read PROGRESS.md before starting. Update it after finishing.`);
 
-CRITICAL RULES:
-- Your working directory is: ${workspace.path}
-- ALL files MUST be created inside this directory. NEVER write files outside it.
-- Use relative paths (e.g., "src/app.ts") not absolute paths.
-- Do NOT just describe what you would do — actually create the files.
-- Before starting, READ "PROGRESS.md" to understand current project state.
-- After finishing, UPDATE "PROGRESS.md" with what you built.`;
-
-      const taskPrompt = `First, read PROGRESS.md to understand the current project state.
-
-Then implement the following task by creating real files:
-
-Task: ${task.title}
-Description: ${task.description ?? "No additional details"}
-
-After creating all files:
-1. Update PROGRESS.md — add your work to "완료된 작업", update "파일 구조", add any architecture decisions.
-2. Write a one-paragraph summary of what you built.`;
+      const agentTask = t("agentTaskPrompt", locale);
+      const taskPrompt = typeof agentTask === "function" ? agentTask(task.title, task.description ?? "") : agentTask;
 
       const onChunk = (chunk: string) => {
         appendTaskOutput(task.id, chunk);
@@ -513,18 +511,12 @@ After creating all files:
           const { stdout: diffStat } = await execFileAsync("git", ["diff", "--cached", "--stat"], { cwd: workspace.path });
           const { stdout: diffContent } = await execFileAsync("git", ["diff", "--cached", "--no-color"], { cwd: workspace.path, maxBuffer: 50 * 1024 });
 
-          // Ask AI to write a proper commit message
+          // Ask AI to write a proper commit message in project locale
           const commitMsgResponse = await callLLM({
-            system: "You are a developer writing a git commit message. Write a concise, descriptive commit message in Korean. First line: summary (max 72 chars). Then blank line + bullet points of what changed. No co-authored-by. No markdown formatting.",
-            prompt: `태스크: ${task.title}
-
-변경된 파일:
-${diffStat.slice(0, 500)}
-
-변경 내용 (일부):
-${diffContent.slice(0, 1500)}
-
-위 변경사항을 요약하는 git 커밋 메시지를 작성하세요.`,
+            system: ts("commitSystemPrompt", locale),
+            prompt: locale === "ko"
+              ? `태스크: ${task.title}\n\n변경된 파일:\n${diffStat.slice(0, 500)}\n\n변경 내용 (일부):\n${diffContent.slice(0, 1500)}\n\n위 변경사항을 요약하는 git 커밋 메시지를 작성하세요.`
+              : `Task: ${task.title}\n\nChanged files:\n${diffStat.slice(0, 500)}\n\nDiff (partial):\n${diffContent.slice(0, 1500)}\n\nWrite a git commit message summarizing the above changes.`,
           });
 
           const commitMsg = commitMsgResponse.content.slice(0, 1000);
@@ -578,7 +570,7 @@ ${diffContent.slice(0, 1500)}
         type: "activity",
         agentName: agent.name,
         agentRole: "member",
-        message: `"${task.title}" 작업을 완료했어요`,
+        message: (() => { const fn = t("activityTaskCompleted", locale); return typeof fn === "function" ? fn(task.title) : fn; })(),
       }, { agentId: agent.id, entityType: "issue", entityId: task.id });
     } catch (err) {
       this.logger.error(

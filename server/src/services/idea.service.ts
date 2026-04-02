@@ -10,6 +10,7 @@ import {
 } from "@letro/db/schema";
 import type { ServiceDependencies } from "./index.js";
 import { callLLM } from "../lib/llm-client.js";
+import { detectLocale } from "../lib/i18n.js";
 import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
 
 /**
@@ -64,7 +65,9 @@ export class IdeaService {
         prompt: `사용자 아이디어: "${rawText}"\n\nJSON으로만 응답하세요.`,
       });
       structured = JSON.parse(response.content) as Record<string, unknown>;
-      this.logger.info({ ideaId: idea!.id }, "Idea structured via Claude");
+      // Auto-detect locale from user's idea text
+      structured.locale = detectLocale(rawText);
+      this.logger.info({ ideaId: idea!.id, locale: structured.locale }, "Idea structured via Claude");
     } catch (err) {
       this.logger.warn({ ideaId: idea!.id, err }, "Claude call failed, using mock");
       structured = generateMockStructured(rawText);
@@ -177,6 +180,8 @@ export class IdeaService {
         (idea.structured as { summary?: string } | null)?.summary ??
         idea.rawText.slice(0, 50);
 
+      const ideaLocale = (idea.structured as Record<string, unknown> | null)?.locale ?? detectLocale(idea.rawText);
+
       const [project] = await tx
         .insert(projects)
         .values({
@@ -184,6 +189,7 @@ export class IdeaService {
           name: projectName,
           description: idea.rawText,
           leaderAgentId: leader!.id,
+          settings: { locale: ideaLocale },
         })
         .returning();
 
