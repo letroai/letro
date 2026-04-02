@@ -2,15 +2,15 @@
 // In-memory buffer for streaming task output.
 // Allows users who open a task mid-execution to see accumulated output.
 
-const store = new Map<string, string>();
+import { TASK_OUTPUT_BUFFER_BYTES } from "./defaults.js";
 
-const MAX_SIZE = 512 * 1024; // 512KB per task
+const store = new Map<string, string>();
 
 export function appendTaskOutput(taskId: string, chunk: string): void {
   const existing = store.get(taskId) ?? "";
   const updated = existing + chunk;
-  // Ring-buffer: keep the last MAX_SIZE bytes
-  store.set(taskId, updated.length > MAX_SIZE ? updated.slice(-MAX_SIZE) : updated);
+  // Ring-buffer: keep the last TASK_OUTPUT_BUFFER_BYTES bytes
+  store.set(taskId, updated.length > TASK_OUTPUT_BUFFER_BYTES ? updated.slice(-TASK_OUTPUT_BUFFER_BYTES) : updated);
 }
 
 export function getTaskOutput(taskId: string): string {

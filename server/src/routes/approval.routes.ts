@@ -1,17 +1,9 @@
 // server/src/routes/approval.routes.ts
 import { Hono } from "hono";
-import type { AppBindings, Actor } from "../env.js";
+import type { AppBindings } from "../env.js";
+import { getCompanyId, getUserId } from "../lib/route-helpers.js";
 
 export const approvalRoutes = new Hono<AppBindings>();
-
-function getCompanyId(actor: Actor): string | null {
-  return "companyId" in actor ? (actor.companyId ?? null) : null;
-}
-
-function getUserId(actor: Actor): string {
-  if (actor.kind === "user") return actor.userId;
-  return "local-user";
-}
 
 // GET /api/approvals
 approvalRoutes.get("/approvals", async (c) => {

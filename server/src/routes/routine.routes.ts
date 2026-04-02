@@ -1,12 +1,9 @@
 // server/src/routes/routine.routes.ts
 import { Hono } from "hono";
-import type { AppBindings, Actor } from "../env.js";
+import type { AppBindings } from "../env.js";
+import { getCompanyId } from "../lib/route-helpers.js";
 
 export const routineRoutes = new Hono<AppBindings>();
-
-function getCompanyId(actor: Actor): string | null {
-  return "companyId" in actor ? (actor.companyId ?? null) : null;
-}
 
 // GET /api/routines
 routineRoutes.get("/routines", async (c) => {

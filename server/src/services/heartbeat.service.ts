@@ -18,7 +18,7 @@ import type { AutonomyConfigService } from "./autonomy/autonomy-config.js";
 import type { ApprovalService } from "./approval.service.js";
 import { omitUndefined } from "../lib/strip-undefined.js";
 import { callLLM, callLLMStreaming } from "../lib/llm-client.js";
-import { DEFAULT_ADAPTER_ID } from "../lib/defaults.js";
+import { DEFAULT_ADAPTER_ID, MEMBER_HEARTBEAT_INTERVAL_MS, LEADER_HEARTBEAT_INTERVAL_MS } from "../lib/defaults.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
 import { appendTaskOutput, clearTaskOutput } from "../lib/task-output-store.js";
 import { executionWorkspaces } from "@letro/db/schema";
@@ -491,7 +491,7 @@ Create real files with working code. When done, provide a brief summary of what 
       this.executeHeartbeat(agent.id).catch((err) =>
         this.logger.error({ err, agentId: agent.id }, "Scheduled member heartbeat failed"),
       );
-    }, 30_000);
+    }, MEMBER_HEARTBEAT_INTERVAL_MS);
   }
 
   /**
@@ -1058,7 +1058,7 @@ Name should be descriptive like "API 설계 전문가" or "데이터 모델링 �
       this.executeHeartbeat(agent.id).catch((err) =>
         this.logger.error({ err, agentId: agent.id }, "Scheduled heartbeat failed"),
       );
-    }, 60_000);
+    }, LEADER_HEARTBEAT_INTERVAL_MS);
   }
 
   /**

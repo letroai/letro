@@ -3,6 +3,11 @@
 
 import { execFile, spawn } from "child_process";
 import { promisify } from "util";
+import {
+  DEFAULT_LLM_MODEL_SHORT,
+  LLM_SYNC_TIMEOUT_MS,
+  LLM_STREAMING_TIMEOUT_MS,
+} from "./defaults.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,7 +29,7 @@ export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
   const args = ["--print"];
 
   // Use specified model or default to Sonnet
-  const model = options.model ?? "sonnet";
+  const model = options.model ?? DEFAULT_LLM_MODEL_SHORT;
   args.push("--model", model);
 
   if (options.system) {
@@ -35,7 +40,7 @@ export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
 
   try {
     const { stdout } = await execFileAsync("claude", args, {
-      timeout: 120_000,
+      timeout: LLM_SYNC_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
     });
 
@@ -68,7 +73,7 @@ export function callLLMStreaming(
       args.push("--dangerously-skip-permissions");
     }
 
-    const model = options.model ?? "sonnet";
+    const model = options.model ?? DEFAULT_LLM_MODEL_SHORT;
     args.push("--model", model);
 
     if (options.system) {
@@ -78,7 +83,7 @@ export function callLLMStreaming(
     args.push(options.prompt);
 
     const child = spawn("claude", args, {
-      timeout: 600_000, // 10 min for actual code generation
+      timeout: LLM_STREAMING_TIMEOUT_MS,
       stdio: ["ignore", "pipe", "pipe"],
       cwd: spawnOptions?.cwd,
       env: spawnOptions?.env

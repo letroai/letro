@@ -3,20 +3,16 @@
 // Delegates to service layer — no direct DB queries.
 
 import { Hono } from "hono";
-import type { AppBindings, Actor } from "../env.js";
+import type { AppBindings } from "../env.js";
 import { eq, and, sql } from "drizzle-orm";
 import { projectGoals, goals, agents, issues } from "@letro/db/schema";
 import { getTaskOutput } from "../lib/task-output-store.js";
 import { publishLiveEvent } from "../ws/websocket-server.js";
+import { getCompanyId } from "../lib/route-helpers.js";
 
 export const projectScopeRoutes = new Hono<AppBindings>();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function getCompanyId(c: { get(key: "actor"): Actor }): string | null {
-  const actor = c.get("actor");
-  return "companyId" in actor ? (actor.companyId ?? null) : null;
-}
 
 // Validate projectId on all project-scoped routes
 projectScopeRoutes.use("/projects/:projectId/*", async (c, next) => {
@@ -30,7 +26,7 @@ projectScopeRoutes.use("/projects/:projectId/*", async (c, next) => {
 // GET /api/projects/:projectId/tasks
 projectScopeRoutes.get("/projects/:projectId/tasks", async (c) => {
   const projectId = c.req.param("projectId");
-  const companyId = getCompanyId(c);
+  const companyId = getCompanyId(c.get("actor"));
   if (!companyId) return c.json({ issues: [], total: 0 });
 
   const services = c.get("services");
@@ -126,7 +122,7 @@ projectScopeRoutes.get("/projects/:projectId/team", async (c) => {
 // GET /api/projects/:projectId/dashboard
 projectScopeRoutes.get("/projects/:projectId/dashboard", async (c) => {
   const projectId = c.req.param("projectId");
-  const companyId = getCompanyId(c);
+  const companyId = getCompanyId(c.get("actor"));
   if (!companyId) return c.json({ error: "Company ID required" }, 400);
 
   const services = c.get("services");
@@ -299,7 +295,7 @@ projectScopeRoutes.post("/projects/:projectId/pause", async (c) => {
 
   logger.info({ projectId, agentsPaused: projectAgents.length, tasksReset: inProgressTasks.length }, "Project paused");
 
-  const companyId = getCompanyId(c);
+  const companyId = getCompanyId(c.get("actor"));
   if (companyId) {
     publishLiveEvent(companyId, {
       type: "project:updated",
@@ -368,7 +364,7 @@ projectScopeRoutes.post("/projects/:projectId/resume", async (c) => {
 
   logger.info({ projectId, membersResumed: pausedMembers.length }, "Project resumed");
 
-  const companyId = getCompanyId(c);
+  const companyId = getCompanyId(c.get("actor"));
   if (companyId) {
     publishLiveEvent(companyId, {
       type: "project:updated",

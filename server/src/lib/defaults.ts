@@ -37,6 +37,16 @@ export const COST_SPIKE_MULTIPLIER = 5;
 export const FAILURE_RATE_THRESHOLD = 0.5;
 export const CASCADE_EVENT_COUNT = 10;
 
+// ===== LLM Timeouts =====
+export const LLM_SYNC_TIMEOUT_MS = 120_000; // 2 min (non-streaming)
+export const LLM_STREAMING_TIMEOUT_MS = 600_000; // 10 min (streaming/code generation)
+export const DEFAULT_LLM_MODEL_SHORT = "sonnet"; // CLI shorthand
+
+// ===== Heartbeat Intervals =====
+export const MEMBER_HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
+export const LEADER_HEARTBEAT_INTERVAL_MS = 60_000; // 60 seconds
+export const TASK_OUTPUT_BUFFER_BYTES = 512 * 1024; // 512KB
+
 // ===== Adapter Defaults =====
 export const DEFAULT_ADAPTER_ID = "claude_local";
 export const MAX_STDOUT_BYTES = 102_400; // 100KB
