@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/hooks/useProjects";
 import {
-  Target, BarChart3, Activity, Shield, Sliders, User,
+  Target, BarChart3, Activity, Shield, Settings, User,
   FolderOpen, Plus, Check,
 } from "lucide-react";
 
@@ -91,8 +91,8 @@ export function MobileMoreSheet({ open, onClose }: MobileMoreSheetProps) {
 
           <div className="h-px bg-[var(--border-default)] my-2 mx-4" />
 
-          <button onClick={() => handleNavigate(`/p/${projectId}/settings/style`)} className="flex items-center gap-3 px-5 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
-            <Sliders className="w-5 h-5 text-[var(--text-muted)]" /><span>작업 방식</span>
+          <button onClick={() => handleNavigate(`/p/${projectId}/settings`)} className="flex items-center gap-3 px-5 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
+            <Settings className="w-5 h-5 text-[var(--text-muted)]" /><span>설정</span>
           </button>
           <button onClick={() => handleNavigate(`/p/${projectId}/account`)} className="flex items-center gap-3 px-5 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">
             <User className="w-5 h-5 text-[var(--text-muted)]" /><span>내 계정</span>
