@@ -673,8 +673,43 @@ ${goalSummary}${ideaContext}${existingContext}
         return;
       }
 
-      // Hire each member from the team_composition (up to cap)
-      const membersToHire = teamComposition.members.slice(0, MAX_TEAM_MEMBERS);
+      // Filter: only hire members whose role matches existing tasks
+      // Skip roles like "designer" if there are no design tasks
+      const todoTasks = await this.db
+        .select({ title: issues.title, description: issues.description })
+        .from(issues)
+        .where(and(eq(issues.projectId, project.id), sql`${issues.status} IN ('todo', 'backlog')`));
+
+      const taskText = todoTasks.map((t) => `${t.title} ${t.description ?? ""}`).join(" ").toLowerCase();
+
+      const roleRelevance: Record<string, string[]> = {
+        backend_engineer: ["api", "server", "database", "backend", "db", "auth", "서버", "데이터"],
+        frontend_engineer: ["ui", "frontend", "화면", "페이지", "컴포넌트", "react", "프론트"],
+        fullstack_engineer: ["full", "구현", "개발", "기능"],
+        devops_engineer: ["deploy", "ci", "cd", "docker", "인프라", "배포"],
+        qa_engineer: ["test", "테스트", "검증", "품질", "qa"],
+        designer: ["디자인", "design", "ux", "ui설계", "와이어프레임", "figma"],
+        tech_lead: ["아키텍처", "설계", "architecture", "리뷰"],
+      };
+
+      const membersToHire = teamComposition.members
+        .filter((member) => {
+          const keywords = roleRelevance[member.preset] ?? [];
+          if (keywords.length === 0) return true; // unknown preset, hire anyway
+          return keywords.some((kw) => taskText.includes(kw));
+        })
+        .slice(0, MAX_TEAM_MEMBERS);
+
+      if (membersToHire.length === 0) {
+        // Fallback: hire at least one fullstack engineer
+        membersToHire.push({
+          preset: "fullstack_engineer",
+          member_type: "coder",
+          display_name: "풀스택 개발자",
+          reason: "General purpose development",
+        });
+      }
+
       for (const member of membersToHire) {
         const [newAgent] = await this.db
           .insert(agents)

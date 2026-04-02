@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 export interface LLMCallOptions {
   system?: string;
   prompt: string;
+  model?: string;
   maxTokens?: number;
 }
 
@@ -21,6 +22,10 @@ export interface LLMResponse {
  */
 export async function callLLM(options: LLMCallOptions): Promise<LLMResponse> {
   const args = ["--print"];
+
+  // Use specified model or default to Sonnet
+  const model = options.model ?? "sonnet";
+  args.push("--model", model);
 
   if (options.system) {
     args.push("--system-prompt", options.system);
